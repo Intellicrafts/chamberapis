@@ -292,6 +292,3 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/category/{categoryId}', [LawyerCaseController::class, 'getCasesByCategory'])->name('by-category');
     });
 });
-
-
-//let me test auto deployment 2
