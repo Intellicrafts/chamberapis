@@ -22,7 +22,7 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::post('/deploy/{repo}', [GitDeployController::class, 'deploy']);
+Route::post('/deploy', [GitDeployController::class, 'deploy']);
 Route::get('/optimize', [GitDeployController::class, 'optimize']);
 
 

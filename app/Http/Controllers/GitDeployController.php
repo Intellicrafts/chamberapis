@@ -9,7 +9,7 @@ use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class GitDeployController extends Controller
 {
-    public function deploy(Request $request, $repo)
+    public function deploy(Request $request)
     {
         $secret = env('GIT_WEBHOOK_SECRET');
         $header = $request->header('X-Hub-Signature-256');
@@ -30,13 +30,7 @@ class GitDeployController extends Controller
         }
 
         // Run the pull command
-        if($repo == 'v-sangam-api') {
-            $pathToRepo = base_path(); // or specify full path like '/var/www/project'
-        }else if($repo == 'v-sangam-build') {
-            $pathToRepo = realpath(base_path('../vsangam.logicera.in')); // Adjust path as needed
-        } else {
-            return response()->json(['message' => 'Repository not found'], 404);
-        }
+        $pathToRepo = base_path(); // or specify full path like '/var/www/project'
         $process = Process::fromShellCommandline('git pull origin main', $pathToRepo);
         $process->run();
 
