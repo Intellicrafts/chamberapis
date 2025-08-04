@@ -22,6 +22,10 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+Route::post('/deploy/{repo}', [GitDeployController::class, 'deploy']);
+Route::get('/optimize', [GitDeployController::class, 'optimize']);
+
+
 Route::prefix('users')->group(function(){
     Route::options('/user', [WelcomeController::class, 'apiResponse']);
     Route::middleware('auth:sanctum')->get('/user', [UserController::class, 'fetchUser']);
@@ -35,61 +39,11 @@ Route::prefix('users')->group(function(){
     Route::middleware('auth:sanctum')->get('/refer/list', [UserController::class, 'listReferredUsers']);
 });
 
-
-
-
-/*
-|--------------------------------------------------------------------------
-| HEALTH CHECK & SYSTEM ROUTES
-|--------------------------------------------------------------------------
-*/
-
-// Health check endpoint for Cloud Run
-Route::get('/health', function () {
-    try {
-        // Check database connection
-        DB::connection()->getPdo();
-        $dbStatus = true;
-    } catch (\Exception $e) {
-        $dbStatus = false;
-    }
-
-    return response()->json([
-        'status' => 'ok',
-        'timestamp' => now()->toIso8601String(),
-        'environment' => app()->environment(),
-        'database' => $dbStatus ? 'connected' : 'disconnected',
-        'version' => config('app.version', '1.0.0'),
-    ]);
-})->middleware('cors');
-
-// CORS test endpoint
-Route::get('/cors-test', function () {
-    return response()->json([
-        'message' => 'CORS is working!',
-        'timestamp' => now()->toIso8601String(),
-        'headers' => request()->headers->all()
-    ]);
-})->middleware('cors');
-
-// Options for CORS preflight
-Route::options('/cors-test', function () {
-    return response()->json(['status' => 'success'], 200);
-})->middleware('cors');
-
 /*
 |--------------------------------------------------------------------------
 | CSRF & Authentication Routes
 |--------------------------------------------------------------------------
 */
-
-Route::get('/sanctum/csrf-cookie', function () {
-    return response()->json(['message' => 'CSRF cookie set']);
-})->middleware(['web', 'cors']);
-
-Route::options('/sanctum/csrf-cookie', function () {
-    return response()->json(['status' => 'success'], 200);
-})->middleware('cors');
 
 // Direct avatar upload routes for compatibility with frontend
 Route::middleware('auth:sanctum')->group(function () {
@@ -97,42 +51,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/avatar', [UserController::class, 'updateAvatar']);
 });
 
-// USER ROUTES
 
-/*
-|---------------------------------------------------------------------
-| PUBLIC AUTHENTICATION ROUTES
-|---------------------------------------------------------------------
-| Routes that don't require authentication
-*/
 
-Route::middleware(['throttle:10,1', 'cors'])->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login'])->name('login');
-    Route::options('/register', function () {
-        return response()->json(['status' => 'success'], 200);
-    });
-    Route::options('/login', function () {
-        return response()->json(['status' => 'success'], 200);
-    });
-});
-Route::post('/logout', [AuthController::class, 'logout'])->middleware(['auth:sanctum', 'cors']);
-Route::options('/logout', function () {
-    return response()->json(['status' => 'success'], 200);
-})->middleware('cors');
+// Route::middleware(['throttle:10,1', 'cors'])->group(function () {
+//     Route::post('/register', [AuthController::class, 'register']);
+//     Route::post('/login', [AuthController::class, 'login'])->name('login');
+//     Route::options('/register', function () {
+//         return response()->json(['status' => 'success'], 200);
+//     });
+//     Route::options('/login', function () {
+//         return response()->json(['status' => 'success'], 200);
+//     });
+// });
+// Route::post('/logout', [AuthController::class, 'logout'])->middleware(['auth:sanctum', 'cors']);
+// Route::options('/logout', function () {
+//     return response()->json(['status' => 'success'], 200);
+// })->middleware('cors');
 
-/*
-|--------------------------------------------------------------------------
-| PASSWORD RESET ROUTES
-|--------------------------------------------------------------------------
-| Routes for password reset functionality
-*/
-
-Route::middleware(['throttle:10,1'])->group(function () {
-    Route::post('/password/send-otp', [PasswordResetController::class, 'sendOtp']);
-    Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
-});
-Route::get('/password/verify-otp', [PasswordResetController::class, 'verifyOtp']);
+// Route::middleware(['throttle:10,1'])->group(function () {
+//     Route::post('/password/send-otp', [PasswordResetController::class, 'sendOtp']);
+//     Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
+// });
+// Route::get('/password/verify-otp', [PasswordResetController::class, 'verifyOtp']);
 
 /*
 |--------------------------------------------------------------------------
@@ -354,7 +294,3 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 });
-
-/* 
- * Rate limiting is now applied directly to the specific routes that need it
- */
