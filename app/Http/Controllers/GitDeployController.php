@@ -40,6 +40,14 @@ class GitDeployController extends Controller
             return response()->json(['message' => 'Deployment failed'], 500);
         }
 
+        $process = Process::fromShellCommandline('php artisan optimize', $pathToRepo);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            Log::error('Optimization failed: ' . $process->getErrorOutput());
+            return response()->json(['message' => 'Optimization failed'], 500);
+        }
+
         Log::info('Deployment successful: ' . $process->getOutput());
         return response()->json([
             'message' => 'Deployment successful',
