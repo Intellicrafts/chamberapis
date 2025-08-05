@@ -32,18 +32,18 @@ Route::options('/{any}', function () {
 })->where('any', '.*');
 
 
-Route::prefix('users')->group(function(){
-    Route::options('/user', [WelcomeController::class, 'apiResponse']);
-    Route::middleware('auth:sanctum')->get('/user', [UserController::class, 'fetchUser']);
-    Route::post('/create', [UserController::class, 'register']);
-    Route::post('/login', [UserController::class, 'login']);
-    Route::middleware('auth:sanctum')->post('/logout', [UserController::class, 'logout']);
-    Route::middleware('auth:sanctum')->post('/update/upi', [UserController::class, 'updatePaymentUpi']);
-    Route::post('/otp/send', [OtpController::class, 'sendOtp']);
-    Route::post('/otp/verify', [OtpController::class, 'verifyOtp']);
-    Route::middleware('auth:sanctum')->post('/password/reset', [UserController::class, 'updatePassword']);
-    Route::middleware('auth:sanctum')->get('/refer/list', [UserController::class, 'listReferredUsers']);
-});
+// Route::prefix('users')->group(function(){
+//     Route::options('/user', [WelcomeController::class, 'apiResponse']);
+//     Route::middleware('auth:sanctum')->get('/user', [UserController::class, 'fetchUser']);
+//     Route::post('/create', [UserController::class, 'register']);
+//     Route::post('/login', [UserController::class, 'login']);
+//     Route::middleware('auth:sanctum')->post('/logout', [UserController::class, 'logout']);
+//     Route::middleware('auth:sanctum')->post('/update/upi', [UserController::class, 'updatePaymentUpi']);
+//     Route::post('/otp/send', [OtpController::class, 'sendOtp']);
+//     Route::post('/otp/verify', [OtpController::class, 'verifyOtp']);
+//     Route::middleware('auth:sanctum')->post('/password/reset', [UserController::class, 'updatePassword']);
+//     Route::middleware('auth:sanctum')->get('/refer/list', [UserController::class, 'listReferredUsers']);
+// });
 
 /*
 |--------------------------------------------------------------------------
@@ -59,26 +59,26 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
-// Route::middleware(['throttle:10,1', 'cors'])->group(function () {
-//     Route::post('/register', [AuthController::class, 'register']);
-//     Route::post('/login', [AuthController::class, 'login'])->name('login');
-//     Route::options('/register', function () {
-//         return response()->json(['status' => 'success'], 200);
-//     });
-//     Route::options('/login', function () {
-//         return response()->json(['status' => 'success'], 200);
-//     });
-// });
-// Route::post('/logout', [AuthController::class, 'logout'])->middleware(['auth:sanctum', 'cors']);
-// Route::options('/logout', function () {
-//     return response()->json(['status' => 'success'], 200);
-// })->middleware('cors');
+Route::middleware(['throttle:10,1', 'cors'])->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login'])->name('login');
+    Route::options('/register', function () {
+        return response()->json(['status' => 'success'], 200);
+    });
+    Route::options('/login', function () {
+        return response()->json(['status' => 'success'], 200);
+    });
+});
+Route::post('/logout', [AuthController::class, 'logout'])->middleware(['auth:sanctum', 'cors']);
+Route::options('/logout', function () {
+    return response()->json(['status' => 'success'], 200);
+})->middleware('cors');
 
-// Route::middleware(['throttle:10,1'])->group(function () {
-//     Route::post('/password/send-otp', [PasswordResetController::class, 'sendOtp']);
-//     Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
-// });
-// Route::get('/password/verify-otp', [PasswordResetController::class, 'verifyOtp']);
+Route::middleware(['throttle:10,1'])->group(function () {
+    Route::post('/password/send-otp', [PasswordResetController::class, 'sendOtp']);
+    Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
+});
+Route::get('/password/verify-otp', [PasswordResetController::class, 'verifyOtp']);
 
 /*
 |--------------------------------------------------------------------------
