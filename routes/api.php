@@ -63,10 +63,10 @@ Route::middleware(['throttle:10,1'])->group(function () {
     //     return response()->json(['status' => 'success'], 200);
     // });
 });
-Route::post('/logout', [AuthController::class, 'logout'])->middleware(['auth:sanctum', 'cors']);
+Route::post('/logout', [AuthController::class, 'logout'])->middleware(['auth:sanctum']);
 Route::options('/logout', function () {
     return response()->json(['status' => 'success'], 200);
-})->middleware('cors');
+});
 
 Route::middleware(['throttle:10,1'])->group(function () {
     Route::post('/password/send-otp', [PasswordResetController::class, 'sendOtp']);
