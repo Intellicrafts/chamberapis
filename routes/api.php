@@ -25,12 +25,6 @@ Route::get('/user', function (Request $request) {
 Route::post('/deploy', [GitDeployController::class, 'deploy']);
 Route::get('/optimize', [GitDeployController::class, 'optimize']);
 
-Route::options('/{any}', function () {
-    return response('', 204)->header('Access-Control-Allow-Origin', '*')
-                             ->header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
-                             ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-})->where('any', '.*');
-
 
 // Route::prefix('users')->group(function(){
 //     Route::options('/user', [WelcomeController::class, 'apiResponse']);
