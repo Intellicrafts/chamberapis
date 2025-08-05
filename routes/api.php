@@ -55,6 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware(['throttle:10,1'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
+    Route::options('/register', [WelcomeController::class, 'apiResponse']);
     Route::post('/login', [AuthController::class, 'login'])->name('login');
     // Route::options('/register', function () {
     //     return response()->json(['status' => 'success'], 200);
