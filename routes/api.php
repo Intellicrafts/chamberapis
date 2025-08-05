@@ -56,12 +56,12 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['throttle:10,1', 'cors'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login'])->name('login');
-    Route::options('/register', function () {
-        return response()->json(['status' => 'success'], 200);
-    });
-    Route::options('/login', function () {
-        return response()->json(['status' => 'success'], 200);
-    });
+    // Route::options('/register', function () {
+    //     return response()->json(['status' => 'success'], 200);
+    // });
+    // Route::options('/login', function () {
+    //     return response()->json(['status' => 'success'], 200);
+    // });
 });
 Route::post('/logout', [AuthController::class, 'logout'])->middleware(['auth:sanctum', 'cors']);
 Route::options('/logout', function () {
