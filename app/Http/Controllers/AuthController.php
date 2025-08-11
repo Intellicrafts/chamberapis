@@ -203,7 +203,7 @@ class AuthController extends Controller
             $user = User::where('email', $email)->firstOrFail();
             
             // Revoke any existing tokens for security
-            $user->tokens()->delete();
+            // $user->tokens()->delete();
 
             // Create a new token
             $token = $user->createToken('auth_token')->plainTextToken;
