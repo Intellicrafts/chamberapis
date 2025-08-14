@@ -159,7 +159,7 @@ class AuthController extends Controller
 
     // Login
     public function login(Request $request)
-    { 
+    { dd($request->all());
         // Rate limiting
         $key = 'login:' . $request->ip();
         if (RateLimiter::tooManyAttempts($key, 5)) {
