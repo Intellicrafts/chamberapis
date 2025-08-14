@@ -367,7 +367,7 @@ class UserController extends Controller
                 'message' => 'Avatar updated successfully',
                 'data' => [
                     'avatar' => $user->avatar,
-                    'avatar_url' => $storageUrl,
+                    'avatar_url' => asset('storage/' . $user->avatar),
                     'user' => $user
                 ]
             ]);
