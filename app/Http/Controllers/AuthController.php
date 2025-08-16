@@ -38,7 +38,7 @@ class AuthController extends Controller
             'name' => 'required|string|max:255|regex:/^[a-zA-Z\s]+$/',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/',
-            'account_type' => 'nullable|in:user,business,lawyer',
+            'account_type' => 'nullable',
             'license_number' => 'required_if:account_type,business,lawyer|string|max:50',
             'specialization' => 'required_if:account_type,business,lawyer|string|max:255',
             'years_of_experience' => 'nullable|integer|min:0|max:50',
@@ -160,6 +160,7 @@ class AuthController extends Controller
     // Login
     public function login(Request $request)
     { 
+        // dd($request->all());
         // Rate limiting
         $key = 'login:' . $request->ip();
         if (RateLimiter::tooManyAttempts($key, 5)) {

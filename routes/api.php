@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\UserController;
+use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\OtpController;
 use App\Http\Controllers\GitDeployController;
 use App\Http\Controllers\WelcomeController;

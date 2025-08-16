@@ -9,6 +9,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Log;
 
 class UserController extends Controller
 {
@@ -106,7 +107,7 @@ class UserController extends Controller
         'active' => $user->active,
         'is_verified' => $user->is_verified,
         'avatar' => $user->avatar,
-        'avatar_url' => $user->avatar_url,
+        'avatar_url' => asset('storage/'.$user->avatar),
         'user_type' => $user->user_type,
         'user_type_name' => $this->getUserTypeName($user->user_type),
         'email_verified_at' => $user->email_verified_at,
@@ -195,7 +196,7 @@ class UserController extends Controller
             'state' => 'nullable|string',
             'country' => 'nullable|string',
             'zip_code' => 'nullable|string',
-            'avatar' => 'nullable|string',
+            // 'avatar' => 'nullable|string',
             'current_password' => 'sometimes|required_with:password|string',
             'password' => 'sometimes|nullable|string|min:8|confirmed',
         ]);
@@ -351,9 +352,10 @@ class UserController extends Controller
                     }
                 }
             }
-            
-            // Store the new avatar
+
+            // Ensure the directory exists
             $path = $request->file('avatar')->store('avatars', 'public');
+            Log::info('Avatar stored at: ' . $path);
             $user->avatar = $path;
             $user->save();
             
