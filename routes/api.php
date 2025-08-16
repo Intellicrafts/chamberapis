@@ -30,7 +30,6 @@ Route::get('/optimize', [GitDeployController::class, 'optimize']);
 //     Route::options('/user', [WelcomeController::class, 'apiResponse']);
 //     Route::middleware('auth:sanctum')->get('/user', [UserController::class, 'fetchUser']);
 //     Route::post('/create', [UserController::class, 'register']);
-//     Route::post('/login', [UserController::class, 'login']);
 //     Route::middleware('auth:sanctum')->post('/logout', [UserController::class, 'logout']);
 //     Route::middleware('auth:sanctum')->post('/update/upi', [UserController::class, 'updatePaymentUpi']);
 //     Route::post('/otp/send', [OtpController::class, 'sendOtp']);
