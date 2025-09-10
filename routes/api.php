@@ -16,11 +16,14 @@ use App\Http\Controllers\API\LawyerController;
 use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\LawyerAdminController;
 use App\Http\Controllers\API\LawyerCaseController;
+use App\Http\Controllers\GoogleAuthController;
 
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::get('auth/google', [GoogleAuthController::class, 'googleLogin'])->name('google.login');
 
 Route::post('/deploy', [GitDeployController::class, 'deploy']);
 Route::get('/optimize', [GitDeployController::class, 'optimize']);
