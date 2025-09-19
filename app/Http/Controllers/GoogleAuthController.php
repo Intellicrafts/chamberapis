@@ -14,7 +14,7 @@ class GoogleAuthController extends Controller
 
     public function googleLogin(Request $request)
     {
-        $idToken = $request->credential;
+        $idToken = $request->token;
 
         try {
             // Verify token with Socialite
@@ -40,5 +40,22 @@ class GoogleAuthController extends Controller
         } catch (\Exception $e) {
             return $this->errorResponse("Something went wrong.", 500);
         }
+    }
+
+    public function saveAdditionalInfo(Request $request)
+    {
+        $user = $request->user();
+        $requestData = $request->all();
+
+        if (!$user) {
+            return $this->errorResponse(null, "Unauthorized", 401);
+        }
+        $user->update([
+            'user_type' => $requestData['user_type'] ?? $user->user_type,
+        ]);
+
+        return $this->successResponse([
+            'user' => $user
+        ], "user type save successfully!", 200);
     }
 }

@@ -23,7 +23,8 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::get('auth/google', [GoogleAuthController::class, 'googleLogin'])->name('google.login');
+Route::post('auth/google', [GoogleAuthController::class, 'googleLogin'])->name('google.login');
+Route::middleware('auth:sanctum')->post('/auth/save/additional', [GoogleAuthController::class, 'saveAdditionalInfo']);
 
 Route::post('/deploy', [GitDeployController::class, 'deploy']);
 Route::get('/optimize', [GitDeployController::class, 'optimize']);
