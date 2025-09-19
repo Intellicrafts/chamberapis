@@ -54,6 +54,24 @@ class GoogleAuthController extends Controller
             'user_type' => $requestData['user_type'] ?? $user->user_type,
         ]);
 
+        if($user->user_type == 2){
+            // save additional info for lawyer
+            // $user->update([
+            //     'bar_registration_number' => $requestData['bar_registration_number'] ?? $user->bar_registration_number,
+            //     'specialization' => $requestData['specialization'] ?? $user->specialization,
+            //     'years_of_experience' => $requestData['years_of_experience'] ?? $user->years_of_experience,
+            //     'contact_number' => $requestData['contact_number'] ?? $user->lawyerProfile->contact_number,
+            //     'address' => $requestData['address'] ?? $user->address,
+            //     'city' => $requestData['city'] ?? $user->city,
+            //     'state' => $requestData['state'] ?? $user->state,
+            //     'zip_code' => $requestData['zip_code'] ?? $user->zip_code,
+            //     'country' => $requestData['country'] ?? $user->country,
+            //     'profile_picture' => $requestData['profile_picture'] ?? $user->profile_picture,
+            //     'bio' => $requestData['bio'] ?? $user->bio,
+            //     'education' => $requestData['education'] ?? $user->education,
+            // ]);
+        }
+
         return $this->successResponse([
             'user' => $user
         ], "user type save successfully!", 200);
