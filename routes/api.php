@@ -17,6 +17,7 @@ use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\LawyerAdminController;
 use App\Http\Controllers\API\LawyerCaseController;
 use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\Api\LawyerAdditionalController;
 
 
 Route::get('/user', function (Request $request) {
@@ -25,6 +26,34 @@ Route::get('/user', function (Request $request) {
 
 Route::post('auth/google', [GoogleAuthController::class, 'googleLogin'])->name('google.login');
 Route::middleware('auth:sanctum')->post('/auth/save/additional', [GoogleAuthController::class, 'saveAdditionalInfo']);
+
+// Protected routes (require authentication)
+Route::middleware(['auth:sanctum'])->group(function () {
+    
+    // Save/Update lawyer additional details
+    Route::post('/lawyer/additional-details', [LawyerAdditionalController::class, 'saveAdditionalDetails'])
+        ->name('lawyer.save-additional-details');
+    
+    // Get current user's lawyer details
+    Route::get('/lawyer/my-details', [LawyerAdditionalController::class, 'getLawyerDetails'])
+        ->name('lawyer.get-details');
+    
+});
+
+// Public routes (no authentication required)
+Route::prefix('public')->group(function () {
+    
+    // Get public lawyer profile by ID
+    Route::get('/lawyer/{lawyerId}', [LawyerAdditionalController::class, 'getPublicLawyerProfile'])
+        ->name('public.lawyer-profile')
+        ->where('lawyerId', '[0-9]+');
+    
+    // Search lawyers with filters
+    Route::get('/lawyers/search', [LawyerAdditionalController::class, 'searchLawyers'])
+        ->name('public.search-lawyers');
+    
+});
+
 
 Route::post('/deploy', [GitDeployController::class, 'deploy']);
 Route::get('/optimize', [GitDeployController::class, 'optimize']);

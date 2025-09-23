@@ -205,4 +205,12 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasOne(Lawyer::class, 'email', 'email');
     }
+
+    /**
+     * Get the lawyer additional details for the user.
+     */
+    public function lawyerDetails()
+    {
+        return $this->hasOne(LawyerAdditional::class);
+    }
 }

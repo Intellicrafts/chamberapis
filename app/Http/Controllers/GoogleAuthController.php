@@ -6,6 +6,7 @@ use App\Traits\JsonResponseTrait;
 use Illuminate\Http\Request;
 use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
+use App\Models\LawyerAdditional;
 use Illuminate\Support\Facades\Auth;
 
 class GoogleAuthController extends Controller
@@ -45,32 +46,64 @@ class GoogleAuthController extends Controller
     public function saveAdditionalInfo(Request $request)
     {
         $user = $request->user();
-        $requestData = $request->all();
 
         if (!$user) {
             return $this->errorResponse(null, "Unauthorized", 401);
         }
+
+        $requestData = $request->all();
+
         $user->update([
             'user_type' => $requestData['user_type'] ?? $user->user_type,
         ]);
 
-        if($user->user_type == 2){
-            // save additional info for lawyer
-            // $user->update([
-            //     'bar_registration_number' => $requestData['bar_registration_number'] ?? $user->bar_registration_number,
-            //     'specialization' => $requestData['specialization'] ?? $user->specialization,
-            //     'years_of_experience' => $requestData['years_of_experience'] ?? $user->years_of_experience,
-            //     'contact_number' => $requestData['contact_number'] ?? $user->lawyerProfile->contact_number,
-            //     'address' => $requestData['address'] ?? $user->address,
-            //     'city' => $requestData['city'] ?? $user->city,
-            //     'state' => $requestData['state'] ?? $user->state,
-            //     'zip_code' => $requestData['zip_code'] ?? $user->zip_code,
-            //     'country' => $requestData['country'] ?? $user->country,
-            //     'profile_picture' => $requestData['profile_picture'] ?? $user->profile_picture,
-            //     'bio' => $requestData['bio'] ?? $user->bio,
-            //     'education' => $requestData['education'] ?? $user->education,
-            // ]);
+        if(isset($requestData['enrollment_no'])){
+            // Handle file uploads
+            $profilePhoto = null;
+            $enrollmentCertificate = null;
+            $copCertificate = null;
+            
+            if ($request->hasFile('profile_photo')) {
+                $profilePhoto = $request->file('profile_photo')->store('lawyer_profiles', 'public');
+            }
+            
+            if ($request->hasFile('enrollment_certificate')) {
+                $enrollmentCertificate = $request->file('enrollment_certificate')->store('lawyer_certificates', 'public');
+            }
+            
+            if ($request->hasFile('cop_certificate')) {
+                $copCertificate = $request->file('cop_certificate')->store('lawyer_certificates', 'public');
+            }
+
+            // Prepare lawyer additional data
+            $lawyerData = [
+                'user_id' => $user->id,
+                'enrollment_no' => $requestData['enrollment_no'] ?? null,
+                'experience_years' => $requestData['experience_years'] ?? null,
+                'consultation_fee' => $requestData['consultation_fee'] ?? null,
+                'practice_areas' => $requestData['practice_areas'] ?? [],
+                'court_practice' => $requestData['court_practice'] ?? [],
+                'languages_spoken' => $requestData['languages_spoken'] ?? [],
+                'professional_bio' => $requestData['professional_bio'] ?? null,
+                'profile_photo' => $profilePhoto,
+                'enrollment_certificate' => $enrollmentCertificate,
+                'cop_certificate' => $copCertificate,
+                'verification_status' => 'pending', // Default status
+                'is_active' => true, // Default active
+            ];
+
+            // Remove null values
+            $lawyerData = array_filter($lawyerData, function($value) {
+                return $value !== null && $value !== [];
+            });
+
+            // Create or update lawyer additional details
+            $user->lawyerDetails()->updateOrCreate(
+                ['user_id' => $user->id],
+                $lawyerData
+            );
         }
+
 
         return $this->successResponse([
             'user' => $user
