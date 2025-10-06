@@ -78,7 +78,7 @@ class AuthController extends Controller
                 $lawyer = null;
                 
                 // Check if user type is business/lawyer
-                if (in_array($accountType, ['business', 'lawyer'],'2')) {
+                if (in_array($accountType, ['business', 'lawyer','2'])) {
                     // Ensure unique license number
                     $licenseNumber = $request->license_number;
                     if (Lawyer::where('license_number', $licenseNumber)->exists()) {
