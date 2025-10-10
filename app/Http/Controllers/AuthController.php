@@ -77,9 +77,8 @@ class AuthController extends Controller
 
                 $lawyer = null;
                 
-                            // Check if user type is business, lawyer, or numeric 2
+                // Check if user type is business, lawyer, or numeric 2
                 if (in_array($accountType, ['business', 'lawyer', 2], true) || $accountType == 2) {
-
                     // Ensure unique license number
                     $licenseNumber = $request->license_number;
                     if (Lawyer::where('license_number', $licenseNumber)->exists()) {
@@ -99,8 +98,6 @@ class AuthController extends Controller
                         'bio' => $request->bio ? trim(strip_tags($request->bio)) : null,
                         'consultation_fee' => $request->consultation_fee ?? 0.00,
                     ]);
-                }
-
                 }
 
                 // Create token
