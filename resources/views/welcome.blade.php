@@ -57,7 +57,7 @@
     <div class="container mx-auto px-4 py-8">
         <!-- Header -->
         <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-white mb-2">🔧 Bakil Backend Dashboard</h1>
+            <h1 class="text-4xl font-bold text-white mb-2">🔧 Mera Vakil Backend Dashboard</h1>
             <p class="text-blue-100 text-lg">Real-time API Status & Performance Monitoring</p>
             <div class="mt-4">
                 <a href="{{ url('/terminal') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-500 active:bg-blue-700 focus:outline-none focus:border-blue-700 focus:ring focus:ring-blue-300 transition">
