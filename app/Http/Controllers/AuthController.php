@@ -200,7 +200,7 @@ class AuthController extends Controller
                 RateLimiter::hit($key);
                 \Log::warning('Login failed: Invalid credentials', ['email' => $email]);
                 return response()->json([
-                    'message' => 'Invalid login credentials.........'
+                    'message' => 'Invalid login credentials'
                 ], 401);
             }
 

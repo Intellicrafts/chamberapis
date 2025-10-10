@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -232,6 +231,198 @@ class UserController extends Controller
                 'total' => $totalCount
             ]
         ], "Users have been fetched", 200);
+    }
+
+    public function profile(Request $request)
+{
+    $user = $request->user();
+    $userData = [];
+
+    // Load common relationships with nested lawyer info
+    $user->load([
+        'appointments' => function ($query) {
+            $query->with([
+                'lawyer:id,full_name,email,phone_number,specialization,profile_picture_url'
+            ])
+            ->orderBy('appointment_time', 'desc')
+            ->take(5);
+        },
+        'legalQueries' => function ($query) {
+            $query->latest()->take(5);
+        },
+        'reviews' => function ($query) {
+            $query->latest()->take(5);
+        }
+    ]);
+
+    // Calculate appointment status counts
+    $appointmentCounts = \App\Models\Appointment::where('user_id', $user->id)
+        ->selectRaw('
+            COUNT(*) as total,
+            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as scheduled,
+            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as cancelled,
+            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as no_show,
+            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as in_progress
+        ', [
+            \App\Models\Appointment::STATUS_SCHEDULED,
+            \App\Models\Appointment::STATUS_COMPLETED,
+            \App\Models\Appointment::STATUS_CANCELLED,
+            \App\Models\Appointment::STATUS_NO_SHOW,
+            \App\Models\Appointment::STATUS_IN_PROGRESS,
+        ])
+        ->first();
+
+    // Basic user info
+    $userData = [
+        'id' => $user->id,
+        'name' => $user->name,
+        'email' => $user->email,
+        'phone' => $user->phone,
+        'address' => $user->address,
+        'city' => $user->city,
+        'state' => $user->state,
+        'country' => $user->country,
+        'zip_code' => $user->zip_code,
+        'full_address' => $user->full_address,
+        'active' => $user->active,
+        'is_verified' => $user->is_verified,
+        'avatar' => $user->avatar,
+        'avatar_url' => $user->avatar_url,
+        'user_type' => $user->user_type,
+        'user_type_name' => $this->getUserTypeName($user->user_type),
+        'email_verified_at' => $user->email_verified_at,
+        'created_at' => $user->created_at,
+        'updated_at' => $user->updated_at,
+    ];
+
+    // Lawyer specific data
+    if ($user->isLawyer()) {
+        $lawyer = \App\Models\Lawyer::where('email', $user->email)->first();
+        if ($lawyer) {
+            $userData['lawyer_data'] = [
+                'license_number' => $lawyer->license_number,
+                'bar_association' => $lawyer->bar_association,
+                'specialization' => $lawyer->specialization,
+                'years_of_experience' => $lawyer->years_of_experience,
+                'bio' => $lawyer->bio,
+                'profile_picture_url' => $lawyer->profile_picture,
+                'consultation_fee' => $lawyer->consultation_fee,
+                'average_rating' => $lawyer->average_rating,
+                'total_reviews' => $lawyer->total_reviews,
+            ];
+        }
+    }
+
+    // Add recent activity + appointment stats
+    $userData['recent_activity'] = [
+        'appointments' => $user->appointments,
+        'legal_queries' => $user->legalQueries,
+        'reviews' => $user->reviews,
+        'appointment_summary' => [
+            'total' => $appointmentCounts->total,
+            'scheduled' => $appointmentCounts->scheduled,
+            'completed' => $appointmentCounts->completed,
+            'cancelled' => $appointmentCounts->cancelled,
+            'no_show' => $appointmentCounts->no_show,
+            'in_progress' => $appointmentCounts->in_progress,
+        ],
+    ];
+
+    return response()->json([
+        'status' => 'success',
+        'data' => $userData,
+        'message' => 'User profile retrieved successfully'
+    ]);
+}
+
+public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+        
+        // Validate basic user data
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => ['sometimes', 'email', Rule::unique('users')->ignore($user->id)],
+            'phone' => 'nullable|string',
+            'address' => 'nullable|string',
+            'city' => 'nullable|string',
+            'state' => 'nullable|string',
+            'country' => 'nullable|string',
+            'zip_code' => 'nullable|string',
+            'avatar' => 'nullable|string',
+            'current_password' => 'sometimes|required_with:password|string',
+            'password' => 'sometimes|nullable|string|min:8|confirmed',
+        ]);
+        
+        // Verify current password if trying to update password
+        if (!empty($validated['current_password']) && !empty($validated['password'])) {
+            if (!Hash::check($validated['current_password'], $user->password)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Current password is incorrect'
+                ], 422);
+            }
+            
+            $validated['password'] = Hash::make($validated['password']);
+        } else {
+            unset($validated['password']);
+        }
+        
+        // Remove current_password from validated data as it's not a column in the users table
+        unset($validated['current_password']);
+        
+        // Update user data
+        $user->update($validated);
+        
+        // Handle lawyer-specific data if the user is a lawyer
+        if ($user->isLawyer() && $request->has('lawyer_data')) {
+            $lawyerData = $request->validate([
+                'lawyer_data.bio' => 'nullable|string',
+                'lawyer_data.specialization' => 'nullable|string',
+                'lawyer_data.bar_association' => 'nullable|string',
+                'lawyer_data.consultation_fee' => 'nullable|numeric',
+            ]);
+            
+            if (!empty($lawyerData['lawyer_data'])) {
+                $lawyer = \App\Models\Lawyer::where('email', $user->email)->first();
+                if ($lawyer) {
+                    $lawyer->update($lawyerData['lawyer_data']);
+                }
+            }
+        }
+        
+        // Reload user with fresh data
+        $user = $user->fresh();
+        
+        // Format response data similar to profile method
+        $userData = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'address' => $user->address,
+            'city' => $user->city,
+            'state' => $user->state,
+            'country' => $user->country,
+            'zip_code' => $user->zip_code,
+            'full_address' => $user->full_address,
+            'active' => $user->active,
+            'is_verified' => $user->is_verified,
+            'avatar' => $user->avatar,
+            'avatar_url' => $user->avatar_url,
+            'user_type' => $user->user_type,
+            'user_type_name' => $this->getUserTypeName($user->user_type),
+            'email_verified_at' => $user->email_verified_at,
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at,
+        ];
+        
+        return response()->json([
+            'status' => 'success',
+            'data' => $userData,
+            'message' => 'Profile updated successfully'
+        ]);
     }
 
     public function fetchUser(Request $request){
