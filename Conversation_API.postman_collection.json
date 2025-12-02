@@ -1,0 +1,540 @@
+{
+  "info": {
+    "_postman_id": "conversation-api-collection",
+    "name": "AI Chatbot Conversation API",
+    "description": "Complete API testing collection for AI chatbot conversations\n\nSetup Instructions:\n1. Import this collection into Postman\n2. Create an environment with these variables:\n   - base_url: http://localhost:8000\n   - auth_token: (get from login endpoint)\n   - user_id: 1\n   - session_id: test_session_123\n3. Run Login endpoint first to get auth_token\n4. Use auth_token in other requests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login - Get Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "login"]
+            },
+            "description": "Get authentication token for API requests\n\nResponse will contain token in data.token field\nCopy this token and set it in environment as auth_token"
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:8000/api/login",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "8000",
+                  "path": ["api", "login"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"name\": \"Test Student\",\n      \"email\": \"test@example.com\"\n    },\n    \"token\": \"1|YOUR_TOKEN_HERE\"\n  },\n  \"message\": \"Login successful\"\n}\n"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Conversation Endpoints",
+      "item": [
+        {
+          "name": "1. Get All Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user?user_id={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Retrieve all conversations for a specific user\n\nReturns: Array of sessions with nested events\nOrdered by: last_activity (descending)\nAuth: Required"
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer token"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:8000/api/conversations/user?user_id=1",
+                  "host": ["localhost"],
+                  "path": ["api", "conversations", "user"],
+                  "query": [
+                    {
+                      "key": "user_id",
+                      "value": "1"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"session\": {\n        \"id\": \"test_session_123\",\n        \"user_id\": 1,\n        \"ip_address\": \"127.0.0.1\",\n        \"user_agent\": \"Mozilla/5.0 Test Browser\",\n        \"last_activity\": \"2025-08-13T18:09:33Z\",\n        \"created_at\": \"2025-08-13T18:09:33Z\"\n      },\n      \"events\": [\n        {\n          \"id\": 1,\n          \"event_type\": \"chat\",\n          \"event_name\": \"user_message\",\n          \"data\": {\n            \"message\": \"Hello, I need legal advice\",\n            \"timestamp\": \"2025-08-13T18:00:00Z\"\n          },\n          \"occurred_at\": \"2025-08-13T18:09:33Z\",\n          \"created_at\": \"2025-08-13T18:09:33Z\"\n        },\n        {\n          \"id\": 2,\n          \"event_type\": \"chat\",\n          \"event_name\": \"ai_response\",\n          \"data\": {\n            \"message\": \"Hello! How can I help you with your legal question?\",\n            \"timestamp\": \"2025-08-13T18:00:05Z\"\n          },\n          \"occurred_at\": \"2025-08-13T18:09:33Z\",\n          \"created_at\": \"2025-08-13T18:09:33Z\"\n        }\n      ],\n      \"event_count\": 2\n    }\n  ],\n  \"message\": \"Conversations retrieved successfully\",\n  \"total_sessions\": 1,\n  \"total_events\": 2\n}\n"
+            }
+          ]
+        },
+        {
+          "name": "2. Get Paginated Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user/paginated?user_id={{user_id}}&per_page=5&sort_by=last_activity&sort_order=desc",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user", "paginated"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                },
+                {
+                  "key": "per_page",
+                  "value": "5"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "last_activity"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc"
+                }
+              ]
+            },
+            "description": "Retrieve paginated conversations with sorting options\n\nQuery Parameters:\n- user_id (required): User ID\n- per_page (optional): Records per page (default: 10)\n- sort_by (optional): Sort field (default: last_activity)\n- sort_order (optional): asc or desc (default: desc)\n\nAuth: Required"
+          }
+        },
+        {
+          "name": "3. Get Session Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/session?session_id={{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "session"],
+              "query": [
+                {
+                  "key": "session_id",
+                  "value": "{{session_id}}"
+                }
+              ]
+            },
+            "description": "Retrieve a specific session with all its events\n\nQuery Parameters:\n- session_id (required): Session ID\n\nAuth: Required"
+          }
+        },
+        {
+          "name": "4. Get Conversation Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/stats?user_id={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "stats"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Get statistics about user's conversations\n\nReturns:\n- total_sessions: Number of sessions\n- total_events: Total number of events\n- event_types: Breakdown by event type\n- oldest_interaction: First interaction timestamp\n- newest_interaction: Last interaction timestamp\n\nAuth: Required"
+          }
+        },
+        {
+          "name": "5. Export Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/export?user_id={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "export"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Export user's complete conversation history as JSON\n\nIncludes:\n- User metadata\n- Export timestamp\n- All sessions and events\n\nUse for: Backup, analysis, migration\n\nAuth: Required"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error Cases",
+      "item": [
+        {
+          "name": "ERR-1: Missing user_id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user"]
+            },
+            "description": "Test missing required parameter\n\nExpected Response: 422 Unprocessable Entity\nMessage: \"user_id parameter is required\""
+          }
+        },
+        {
+          "name": "ERR-2: Invalid user_id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user?user_id=99999",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "99999"
+                }
+              ]
+            },
+            "description": "Test non-existent user\n\nExpected Response: 404 Not Found\nMessage: \"User not found\""
+          }
+        },
+        {
+          "name": "ERR-3: Invalid session_id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/session?session_id=invalid_session_xyz",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "session"],
+              "query": [
+                {
+                  "key": "session_id",
+                  "value": "invalid_session_xyz"
+                }
+              ]
+            },
+            "description": "Test non-existent session\n\nExpected Response: 404 Not Found\nMessage: \"Session not found\""
+          }
+        },
+        {
+          "name": "ERR-4: Missing auth token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user?user_id={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Test request without authentication\n\nExpected Response: 401 Unauthorized\nMessage: \"Unauthenticated.\""
+          }
+        },
+        {
+          "name": "ERR-5: Invalid auth token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid_token_here",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user?user_id={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Test request with invalid token\n\nExpected Response: 401 Unauthorized\nMessage: \"Unauthenticated.\""
+          }
+        }
+      ]
+    },
+    {
+      "name": "Test Variations",
+      "item": [
+        {
+          "name": "VAR-1: Different per_page",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user/paginated?user_id={{user_id}}&per_page=2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user", "paginated"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                },
+                {
+                  "key": "per_page",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "Test pagination with different per_page value"
+          }
+        },
+        {
+          "name": "VAR-2: Sort ascending",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/user/paginated?user_id={{user_id}}&sort_order=asc",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "user", "paginated"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "asc"
+                }
+              ]
+            },
+            "description": "Test sorting in ascending order"
+          }
+        },
+        {
+          "name": "VAR-3: Missing session_id parameter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/session",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "session"]
+            },
+            "description": "Test missing session_id parameter\n\nExpected: 422 Unprocessable Entity"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "1|YOUR_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "session_id",
+      "value": "test_session_123",
+      "type": "string"
+    }
+  ]
+}

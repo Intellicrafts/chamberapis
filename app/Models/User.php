@@ -213,4 +213,20 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasOne(LawyerAdditional::class);
     }
+
+    /**
+     * Get user's chat sessions
+     */
+    public function chatSessions(): HasMany
+    {
+        return $this->hasMany(ChatSession::class, 'user_id', 'id');
+    }
+
+    /**
+     * Get user's chat events
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(Event::class, 'user_id', 'id');
+    }
 }

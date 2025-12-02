@@ -18,6 +18,7 @@ use App\Http\Controllers\API\LawyerAdminController;
 use App\Http\Controllers\API\LawyerCaseController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\LawyerAdditionalController;
+use App\Http\Controllers\API\ConversationController;
 
 
 Route::get('/user', function (Request $request) {
@@ -323,5 +324,39 @@ Route::middleware('auth:sanctum')->group(function () {
         // Query Operations
         Route::get('/lawyer/{lawyerId}', [LawyerCaseController::class, 'getCasesByLawyer'])->name('by-lawyer');
         Route::get('/category/{categoryId}', [LawyerCaseController::class, 'getCasesByCategory'])->name('by-category');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI CHATBOT CONVERSATION ROUTES
+    |--------------------------------------------------------------------------
+    | Routes for retrieving and managing AI agentic chatbot conversations
+    | Base URL: /api/conversations
+    | 
+    | These endpoints provide conversation history data for display in
+    | React applications, with sessions grouped and events organized
+    | chronologically for easy consumption.
+    */
+
+    Route::prefix('conversations')->name('conversations.')->group(function () {
+        // Get all user conversations (sessions with events)
+        // Query Parameters: user_id (required)
+        Route::get('/user', [ConversationController::class, 'getUserConversations'])->name('user');
+        
+        // Get paginated user conversations with optional filters
+        // Query Parameters: user_id (required), per_page, sort_by, sort_order
+        Route::get('/user/paginated', [ConversationController::class, 'getUserConversationsPaginated'])->name('user-paginated');
+        
+        // Get specific session conversation
+        // Query Parameters: session_id (required)
+        Route::get('/session', [ConversationController::class, 'getSessionConversation'])->name('session');
+        
+        // Get conversation statistics for a user
+        // Query Parameters: user_id (required)
+        Route::get('/stats', [ConversationController::class, 'getConversationStats'])->name('stats');
+        
+        // Export user conversations as JSON
+        // Query Parameters: user_id (required)
+        Route::get('/export', [ConversationController::class, 'exportUserConversations'])->name('export');
     });
 });
