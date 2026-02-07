@@ -18,6 +18,7 @@ use App\Http\Controllers\API\LawyerAdminController;
 use App\Http\Controllers\API\LawyerCaseController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\LawyerAdditionalController;
+use App\Http\Controllers\API\ChatController;
 
 
 Route::get('/user', function (Request $request) {
@@ -323,5 +324,22 @@ Route::middleware('auth:sanctum')->group(function () {
         // Query Operations
         Route::get('/lawyer/{lawyerId}', [LawyerCaseController::class, 'getCasesByLawyer'])->name('by-lawyer');
         Route::get('/category/{categoryId}', [LawyerCaseController::class, 'getCasesByCategory'])->name('by-category');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHATBOT SESSION & EVENTS ROUTES
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('chat')->name('chat.')->group(function () {
+        Route::get('/sessions', [ChatController::class, 'index'])->name('sessions.index');
+        Route::post('/sessions', [ChatController::class, 'store'])->name('sessions.store');
+        Route::get('/sessions/{id}', [ChatController::class, 'show'])->name('sessions.show');
+        Route::post('/sessions/{id}/events', [ChatController::class, 'addEvent'])->name('sessions.events.store');
+    });
+
+    // Admin Chat Dashboard
+    Route::prefix('admin/chat')->name('admin.chat.')->group(function () {
+        Route::get('/sessions', [ChatController::class, 'adminDashboard'])->name('sessions.all');
     });
 });
