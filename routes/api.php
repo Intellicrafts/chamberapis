@@ -18,6 +18,7 @@ use App\Http\Controllers\API\LawyerAdminController;
 use App\Http\Controllers\API\LawyerCaseController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\LawyerAdditionalController;
+use App\Http\Controllers\API\ChatController;
 
 
 Route::get('/user', function (Request $request) {
@@ -323,5 +324,49 @@ Route::middleware('auth:sanctum')->group(function () {
         // Query Operations
         Route::get('/lawyer/{lawyerId}', [LawyerCaseController::class, 'getCasesByLawyer'])->name('by-lawyer');
         Route::get('/category/{categoryId}', [LawyerCaseController::class, 'getCasesByCategory'])->name('by-category');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHATBOT SESSION & EVENTS ROUTES
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('chat')->name('chat.')->group(function () {
+        Route::get('/sessions', [ChatController::class, 'index'])->name('sessions.index');
+        Route::post('/sessions', [ChatController::class, 'store'])->name('sessions.store');
+        Route::get('/sessions/{id}', [ChatController::class, 'show'])->name('sessions.show');
+        Route::post('/sessions/{id}/events', [ChatController::class, 'addEvent'])->name('sessions.events.store');
+    });
+
+    // Admin Chat Dashboard
+    Route::prefix('admin/chat')->name('admin.chat.')->group(function () {
+        Route::get('/sessions', [ChatController::class, 'adminDashboard'])->name('sessions.all');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | CONSULTATION SESSION ROUTES (Real-Time Lawyer-Client Chat)
+    |--------------------------------------------------------------------------
+    | Routes for managing live consultation sessions during appointments
+    */
+    Route::prefix('consultations')->name('consultations.')->group(function () {
+        // Session Management
+        Route::get('/', [\App\Http\Controllers\API\ConsultationSessionController::class, 'index'])->name('index');
+        Route::post('/start/{appointmentId}', [\App\Http\Controllers\API\ConsultationSessionController::class, 'start'])->name('start');
+        Route::get('/active', [\App\Http\Controllers\API\ConsultationSessionController::class, 'getActiveSession'])->name('active');
+        
+        // Session Actions (by token)
+        Route::get('/{sessionToken}', [\App\Http\Controllers\API\ConsultationSessionController::class, 'show'])->name('show');
+        Route::get('/{sessionToken}/can-join', [\App\Http\Controllers\API\ConsultationSessionController::class, 'canJoin'])->name('can-join');
+        Route::post('/{sessionToken}/end', [\App\Http\Controllers\API\ConsultationSessionController::class, 'end'])->name('end');
+        
+        // Message Management
+        Route::get('/{sessionToken}/messages', [\App\Http\Controllers\API\ConsultationMessageController::class, 'index'])->name('messages.index');
+        Route::post('/{sessionToken}/messages', [\App\Http\Controllers\API\ConsultationMessageController::class, 'store'])->name('messages.store');
+        Route::patch('/{sessionToken}/messages/{messageId}/read', [\App\Http\Controllers\API\ConsultationMessageController::class, 'markAsRead'])->name('messages.read');
+        Route::get('/{sessionToken}/messages/unread-count', [\App\Http\Controllers\API\ConsultationMessageController::class, 'getUnreadCount'])->name('messages.unread-count');
+        
+        // Real-time Features
+        Route::post('/{sessionToken}/typing', [\App\Http\Controllers\API\ConsultationMessageController::class, 'typing'])->name('typing');
     });
 });
