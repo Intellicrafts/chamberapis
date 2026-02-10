@@ -17,7 +17,11 @@ class Appointment extends Model
         'appointment_time',
         'duration_minutes',
         'status',
-        'meeting_link'
+        'meeting_link',
+        'consultation_duration_minutes',
+        'consultation_enabled',
+        'consultation_join_time',
+        'consultation_status',
     ];
 
      protected static function boot()
@@ -55,6 +59,52 @@ class Appointment extends Model
     public function lawyer(): BelongsTo
     {
         return $this->belongsTo(Lawyer::class);
+    }
+
+    /**
+     * Get the consultation session for this appointment
+     */
+    public function consultationSession()
+    {
+        return $this->hasOne(ConsultationSession::class);
+    }
+
+    /**
+     * Check if consultation can be joined (1 minute before appointment time)
+     */
+    public function canJoinConsultation(): bool
+    {
+        if (!$this->consultation_enabled) {
+            return false;
+        }
+
+        $now = now();
+        $appointmentTime = $this->appointment_time;
+        $endTime = $this->getEndTimeAttribute();
+
+        // Can join 1 minute before scheduled time
+        $joinTime = $appointmentTime->copy()->subMinute();
+
+        return $now->greaterThanOrEqualTo($joinTime) && $now->lessThanOrEqualTo($endTime);
+    }
+
+    /**
+     * Get minutes until can join consultation
+     */
+    public function getMinutesUntilJoinAttribute(): ?int
+    {
+        if (!$this->consultation_enabled) {
+            return null;
+        }
+
+        $joinTime = $this->appointment_time->copy()->subMinute();
+        $now = now();
+
+        if ($now->greaterThanOrEqualTo($joinTime)) {
+            return 0; // Can join now
+        }
+
+        return (int) $now->diffInMinutes($joinTime);
     }
 
     /**
