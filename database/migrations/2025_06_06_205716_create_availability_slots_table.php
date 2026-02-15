@@ -9,15 +9,12 @@ return new class extends Migration
     public function up()
     {
         Schema::create('availability_slots', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('lawyer_id');
+            $table->id();
+            $table->foreignId('lawyer_id')->constrained()->onDelete('cascade');
             $table->timestamp('start_time');
             $table->timestamp('end_time');
             $table->boolean('is_booked')->default(false);
             $table->timestamps();
-            
-            // Foreign keys
-            $table->foreign('lawyer_id')->references('id')->on('lawyers')->onDelete('cascade');
             
             // Indexes
             $table->index('lawyer_id');

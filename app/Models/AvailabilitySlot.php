@@ -24,7 +24,7 @@ class AvailabilitySlot extends Model
             'start_time' => 'datetime',
             'end_time' => 'datetime',
             'is_booked' => 'boolean',
-            'lawyer_id' => 'string',
+            'lawyer_id' => 'integer',
         ];
     }
 

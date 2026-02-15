@@ -11,11 +11,9 @@ class CreateLawyersCasesTable extends Migration
         Schema::create('lawyers_cases', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->uuid('lawyer_id');
-            $table->foreign('lawyer_id')->references('id')->on('lawyers')->onDelete('cascade');
+            $table->foreignId('lawyer_id')->constrained()->onDelete('cascade');
             $table->string('casename');
-            $table->uuid('category_id');
-            $table->foreign('category_id')->references('id')->on('lawyer_categories')->onDelete('cascade');
+            $table->foreignId('category_id')->constrained('lawyer_categories')->onDelete('cascade');
             $table->timestamps(); // includes created_at and updated_at
         });
     }

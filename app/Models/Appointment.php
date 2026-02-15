@@ -24,25 +24,34 @@ class Appointment extends Model
         'consultation_status',
     ];
 
-     protected static function boot()
-    {
-        parent::boot();
+    // Removed UUID boot method - using standard auto-increment integer IDs
 
-        static::creating(function ($model) {
-            if (empty($model->id)) {
-                $model->id = (string) Str::uuid();
-            }
-        });
-    }
+    protected $appends = ['client_name', 'case_type', 'end_time', 'time_range'];
 
     protected function casts(): array
     {
         return [
             'appointment_time' => 'datetime',
             'duration_minutes' => 'integer',
-            'user_id' => 'string',
-            'lawyer_id' => 'string',
+            'user_id' => 'integer',
+            'lawyer_id' => 'integer',
         ];
+    }
+
+    /**
+     * Get client name (User's name)
+     */
+    public function getClientNameAttribute()
+    {
+        return $this->user ? $this->user->name : 'N/A';
+    }
+
+    /**
+     * Get case type/specialization
+     */
+    public function getCaseTypeAttribute()
+    {
+        return $this->lawyer ? ($this->lawyer->specialization ?: 'Legal Consultation') : 'Consultation';
     }
 
     /**
@@ -122,6 +131,22 @@ class Appointment extends Model
     public function scopeByStatus($query, $status)
     {
         return $query->where('status', $status);
+    }
+
+    /**
+     * Scope for user's appointments
+     */
+    public function scopeForUser($query, $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    /**
+     * Scope for lawyer's appointments
+     */
+    public function scopeForLawyer($query, $lawyerId)
+    {
+        return $query->where('lawyer_id', $lawyerId);
     }
 
     /**

@@ -9,9 +9,9 @@ return new class extends Migration
     public function up()
     {
         Schema::create('appointments', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->uuid('lawyer_id')->constrained()->onDelete('cascade'); 
+            $table->foreignId('lawyer_id')->constrained()->onDelete('cascade'); 
             $table->timestamp('appointment_time');
             $table->integer('duration_minutes')->default(30);
             $table->string('status')->default('scheduled'); // scheduled, completed, cancelled, no-show

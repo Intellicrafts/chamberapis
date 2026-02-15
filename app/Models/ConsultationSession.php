@@ -14,6 +14,8 @@ class ConsultationSession extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $appends = ['client_name'];
+
     protected $fillable = [
         'appointment_id',
         'user_id',
@@ -41,6 +43,14 @@ class ConsultationSession extends Model
         'lawyer_joined_at' => 'datetime',
         'metadata' => 'array',
     ];
+
+    /**
+     * Get client name (User's name)
+     */
+    public function getClientNameAttribute()
+    {
+        return $this->user ? $this->user->name : 'N/A';
+    }
 
     /**
      * Boot method to generate session token
