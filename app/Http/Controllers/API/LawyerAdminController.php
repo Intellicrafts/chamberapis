@@ -15,30 +15,42 @@ class LawyerAdminController extends Controller
    
 public function index($userId)
 {
-    // Fetch upcoming appointments for the lawyer
-    $upcomingAppointments = Appointment::where('lawyer_id', $userId)
+    // Find the user first
+    $user = \App\Models\User::find($userId);
+    if (!$user) {
+        return response()->json(['message' => 'User not found'], 404);
+    }
+
+    // Find the associated lawyer record
+    $lawyer = $user->lawyer;
+    if (!$lawyer) {
+        return response()->json(['message' => 'Lawyer profile not found for this user'], 404);
+    }
+
+    $lawyerId = $lawyer->id;
+
+    // Fetch upcoming appointments for the lawyer using the correct lawyer_id
+    $upcomingAppointments = Appointment::where('lawyer_id', $lawyerId)
         ->upcoming()
         ->orderBy('appointment_time', 'asc')
         ->get();
 
     // Count active cases for the lawyer
-    $activeCasesCount = LawyersCase::where('lawyer_id', $userId)->count();
+    $activeCasesCount = LawyersCase::where('lawyer_id', $lawyerId)->count();
 
     // Fetch lawyer categories
-
-
-$categoryNames = LawyersCase::with('category')
-    ->where('lawyer_id', $userId)
-    ->get()
-    ->pluck('category.category_name') // from the relation
-    ->unique()
-    ->values()
-    ->toArray(); // <-- array output
+    $categoryNames = LawyersCase::with('category')
+        ->where('lawyer_id', $lawyerId)
+        ->get()
+        ->pluck('category.category_name') // from the relation
+        ->unique()
+        ->values()
+        ->toArray(); // <-- array output
 
 
 
     // Today's appointments with status = scheduled
-    $todaysAppointments = Appointment::where('lawyer_id', $userId)
+    $todaysAppointments = Appointment::where('lawyer_id', $lawyerId)
         ->whereBetween('appointment_time', [
             Carbon::today()->startOfDay(),
             Carbon::today()->endOfDay()

@@ -284,6 +284,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Availability Slots for a specific lawyer
         Route::get('/{lawyer}/available-today', [LawyerController::class, 'todayAvailableSlots'])->name('available-today');
+        
+        // Appointments for a specific lawyer (Frontend compatibility)
+        Route::get('/{id}/appointments', [LawyerController::class, 'appointments'])->name('appointments');
     });
 
 

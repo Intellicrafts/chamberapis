@@ -21,8 +21,8 @@ class Review extends Model
     {
         return [
             'rating' => 'integer',
-            'user_id' => 'string',
-            'lawyer_id' => 'string',
+            'user_id' => 'integer',
+            'lawyer_id' => 'integer',
         ];
     }
 

@@ -75,21 +75,27 @@ class UserController extends Controller
     ]);
 
     // Calculate appointment status counts
-    $appointmentCounts = \App\Models\Appointment::where('user_id', $user->id)
-        ->selectRaw('
+    $query = \App\Models\Appointment::query();
+    
+    if ($user->isLawyer()) {
+        $lawyer = $user->lawyer;
+        if ($lawyer) {
+            $query->where('lawyer_id', $lawyer->id);
+        } else {
+            $query->where('user_id', $user->id);
+        }
+    } else {
+        $query->where('user_id', $user->id);
+    }
+
+    $appointmentCounts = $query->selectRaw('
             COUNT(*) as total,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as scheduled,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as cancelled,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as no_show,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as in_progress
-        ', [
-            \App\Models\Appointment::STATUS_SCHEDULED,
-            \App\Models\Appointment::STATUS_COMPLETED,
-            \App\Models\Appointment::STATUS_CANCELLED,
-            \App\Models\Appointment::STATUS_NO_SHOW,
-            \App\Models\Appointment::STATUS_IN_PROGRESS,
-        ])
+            SUM(CASE WHEN status = "scheduled" THEN 1 ELSE 0 END) as scheduled,
+            SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN status = "cancelled" THEN 1 ELSE 0 END) as cancelled,
+            SUM(CASE WHEN status = "no-show" THEN 1 ELSE 0 END) as no_show,
+            SUM(CASE WHEN status = "in-progress" THEN 1 ELSE 0 END) as in_progress
+        ')
         ->first();
 
     // Basic user info
@@ -133,18 +139,31 @@ class UserController extends Controller
         }
     }
 
+    // For lawyer, appointments should be those where they are the lawyer
+    $appointments = $user->appointments;
+    if ($user->isLawyer()) {
+        $lawyer = $user->lawyer;
+        if ($lawyer) {
+            $appointments = \App\Models\Appointment::where('lawyer_id', $lawyer->id)
+                ->with(['user:id,name,email,phone'])
+                ->orderBy('appointment_time', 'desc')
+                ->take(10)
+                ->get();
+        }
+    }
+
     // Add recent activity + appointment stats
     $userData['recent_activity'] = [
-        'appointments' => $user->appointments,
+        'appointments' => $appointments,
         'legal_queries' => $user->legalQueries,
         'reviews' => $user->reviews,
         'appointment_summary' => [
-            'total' => $appointmentCounts->total,
-            'scheduled' => $appointmentCounts->scheduled,
-            'completed' => $appointmentCounts->completed,
-            'cancelled' => $appointmentCounts->cancelled,
-            'no_show' => $appointmentCounts->no_show,
-            'in_progress' => $appointmentCounts->in_progress,
+            'total' => $appointmentCounts->total ?? 0,
+            'scheduled' => $appointmentCounts->scheduled ?? 0,
+            'completed' => $appointmentCounts->completed ?? 0,
+            'cancelled' => $appointmentCounts->cancelled ?? 0,
+            'no_show' => $appointmentCounts->no_show ?? 0,
+            'in_progress' => $appointmentCounts->in_progress ?? 0,
         ],
     ];
 

@@ -339,6 +339,49 @@ class LawyerController extends Controller
         }
     }
 
+    /**
+     * Get appointments for a specific lawyer, potentially using user ID
+     */
+    public function appointments(\Illuminate\Http\Request $request, $id): \Illuminate\Http\JsonResponse
+    {
+        try {
+            // Check if $id refers to a User ID or a Lawyer ID
+            $lawyer = \App\Models\Lawyer::find($id);
+            
+            // If not found, check if it's a User ID that has a lawyer profile
+            if (!$lawyer) {
+                $user = \App\Models\User::find($id);
+                if ($user) {
+                    $lawyer = $user->lawyer;
+                }
+            }
+
+            if (!$lawyer) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lawyer profile not found'
+                ], 404);
+            }
+
+            $appointments = \App\Models\Appointment::where('lawyer_id', $lawyer->id)
+                ->with(['user:id,name,email,phone'])
+                ->orderBy('appointment_time', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $appointments,
+                'message' => 'Appointments retrieved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error retrieving appointments: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     
 
 

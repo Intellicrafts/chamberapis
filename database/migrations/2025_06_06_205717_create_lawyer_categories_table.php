@@ -9,9 +9,9 @@ return new class extends Migration
     public function up()
     {
         Schema::create('lawyer_categories', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('category_name')->unique();
-            $table->uuid('lawyer_id')->nullable(); // This might need revision based on your logic
+            $table->foreignId('lawyer_id')->nullable()->constrained()->onDelete('cascade');
             $table->timestamps();
             
             // Indexes
