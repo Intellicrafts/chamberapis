@@ -73,6 +73,8 @@ class AppointmentController extends Controller
                 'appointment_time' => 'required|date|after:now',
                 'duration_minutes' => 'required|integer|min:15|max:240',
                 'status' => 'sometimes|string|in:' . implode(',', Appointment::getStatuses()),
+                'meeting_link' => 'nullable|string',
+                'notes' => 'nullable|string',
             ]);
 
             // Default status to scheduled if not provided
