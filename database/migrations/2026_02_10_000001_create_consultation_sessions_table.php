@@ -25,9 +25,9 @@ return new class extends Migration
                   ->default('waiting');
             
             // Timing information
-            $table->timestamp('scheduled_start_time');
+            $table->timestamp('scheduled_start_time')->nullable();
             $table->timestamp('actual_start_time')->nullable();
-            $table->timestamp('scheduled_end_time');
+            $table->timestamp('scheduled_end_time')->nullable();
             $table->timestamp('actual_end_time')->nullable();
             $table->integer('duration_minutes')->default(55);
             

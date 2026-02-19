@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('availability_slots', function (Blueprint $table) {
             $table->id();
             $table->foreignId('lawyer_id')->constrained()->onDelete('cascade');
-            $table->timestamp('start_time');
-            $table->timestamp('end_time');
+            $table->timestamp('start_time')->nullable();
+            $table->timestamp('end_time')->nullable();
             $table->boolean('is_booked')->default(false);
             $table->timestamps();
             

@@ -14,7 +14,9 @@ class Review extends Model
         'user_id',
         'lawyer_id',
         'rating',
-        'comment'
+        'comment',
+        'ip_address',
+        'device_id',
     ];
 
     protected function casts(): array
