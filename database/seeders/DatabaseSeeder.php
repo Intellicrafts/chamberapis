@@ -9,31 +9,33 @@ class DatabaseSeeder extends Seeder
     /**
      * Seed the application's database.
      *
-     * Run order matters – new Rating & Reputation seeders depend on
-     * lawyers, users, and appointments already existing.
+     * Designed to work correctly with BOTH:
+     *   php artisan migrate:fresh --seed       (drops all, rebuilds from scratch)
+     *   php artisan db:seed --class=XxxSeeder  (individual seeder runs)
+     *
+     * Run order is critical — each group depends on the previous one.
      */
     public function run(): void
     {
-        // ── Existing base seeders (keep original data) ───────────────────────
+        // ── 1. Lookup / reference data (no foreign keys) ────────────────────
         $this->call([
-            // These were previously run individually; keeping them here
-            // makes a fresh `php artisan db:seed` fully reproducible.
-            LawyerCategorySeeder::class,
-            // AppointmentSeeder::class,     // uncomment if needed
-            // AvailabilitySlotSeeder::class, // uncomment if needed
-            // ReviewSeeder::class,           // uncomment if needed
+            LawyerCategorySeeder::class,   // fixed: no longer injects UUID as id
         ]);
 
-        // ── Lawyer Rating & Reputation System seeders ────────────────────────
-        // Order: LawyerRating → AppointmentHistory → Reviews (anti-gaming)
-        //        → ComplianceEvents → SpecializationScores
+        // ── 2. Core entities: users, lawyers, appointments ───────────────────
+        // BaseDataSeeder is idempotent — skips rows that already exist
         $this->call([
-            LawyerRatingSeeder::class,
-            AppointmentHistorySeeder::class,
-            ReviewAntiGamingSeeder::class,
-            ComplianceEventSeeder::class,
-            SpecializationScoreSeeder::class,
+            BaseDataSeeder::class,
+        ]);
+
+        // ── 3. Lawyer Rating & Reputation System ────────────────────────────
+        // Depends on: lawyers (step 2), appointments (step 2), users (step 2)
+        $this->call([
+            LawyerRatingSeeder::class,        // lawyers_rating  (20 rows)
+            AppointmentHistorySeeder::class,  // appointments_history (20 rows)
+            ReviewAntiGamingSeeder::class,    // reviews incl. ip/device_id (20 rows)
+            ComplianceEventSeeder::class,     // compliance_events (20 rows)
+            SpecializationScoreSeeder::class, // specialization_scores (20 rows)
         ]);
     }
 }
-
