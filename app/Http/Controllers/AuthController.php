@@ -39,7 +39,7 @@ class AuthController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]/',
             'account_type' => 'nullable',
-            'license_number' => 'required_if:account_type,business,lawyer|string|max:50',
+            'enrollment_no' => 'required_if:account_type,business,lawyer|string|max:50',
             'specialization' => 'required_if:account_type,business,lawyer|string|max:255',
             'years_of_experience' => 'nullable|integer|min:0|max:50',
             'consultation_fee' => 'nullable|numeric|min:0',
@@ -79,10 +79,10 @@ class AuthController extends Controller
                 
                 // Check if user type is business, lawyer, or numeric 2
                 if (in_array($accountType, ['business', 'lawyer', 2], true) || $accountType == 2) {
-                    // Ensure unique license number
-                    $licenseNumber = $request->enrollment_no;
-                    if (Lawyer::where('license_number', $licenseNumber)->exists()) {
-                        throw new \Exception('License number already exists');
+                    // Ensure unique enrollment number
+                    $enrollmentNo = $request->enrollment_no;
+                    if (Lawyer::where('enrollment_no', $enrollmentNo)->exists()) {
+                        throw new \Exception('Enrollment number already exists');
                     }
 
                     // Create lawyer record
@@ -92,11 +92,12 @@ class AuthController extends Controller
                         'password_hash' => Hash::make($request->password),
                         'active' => true,
                         'is_verified' => false,
-                        'license_number' => $licenseNumber,
+                        'enrollment_no' => $enrollmentNo,
                         'specialization' => $request->specialization,
                         'years_of_experience' => $request->years_of_experience ?? 0,
                         'bio' => $request->bio ? trim(strip_tags($request->bio)) : null,
                         'consultation_fee' => $request->consultation_fee ?? 0.00,
+                        'status' => 'pending',
                     ]);
                 }
 
@@ -132,9 +133,10 @@ class AuthController extends Controller
                         'uuid' => $lawyer->id,
                         'full_name' => $lawyer->full_name,
                         'email' => $lawyer->email,
-                        'license_number' => $lawyer->license_number,
+                        'enrollment_no' => $lawyer->enrollment_no,
                         'specialization' => $lawyer->specialization,
                         'is_verified' => $lawyer->is_verified,
+                        'status' => $lawyer->status,
                     ];
                 }
 
@@ -239,9 +241,10 @@ class AuthController extends Controller
                     'uuid' => $lawyer->id,
                     'full_name' => $lawyer->full_name,
                     'email' => $lawyer->email,
-                    'license_number' => $lawyer->license_number,
+                    'enrollment_no' => $lawyer->enrollment_no,
                     'specialization' => $lawyer->specialization,
                     'is_verified' => $lawyer->is_verified,
+                    'status' => $lawyer->status,
                 ];
             }
 

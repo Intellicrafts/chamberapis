@@ -60,7 +60,7 @@ class FixedSeeder extends Seeder
                 'password_hash' => bcrypt('password'),
                 'active' => true,
                 'is_verified' => true,
-                'license_number' => $faker->unique()->regexify('[A-Z]{2}[0-9]{6}'),
+                'enrollment_no' => $faker->unique()->regexify('[A-Z]{2}[0-9]{6}'),
                 'bar_association' => $faker->randomElement(['State Bar Association', 'American Bar Association', 'County Bar Association']),
                 'specialization' => $faker->randomElement($specializations),
                 'years_of_experience' => $faker->numberBetween(1, 30),

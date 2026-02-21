@@ -94,7 +94,7 @@ class BaseDataSeeder extends Seeder
                 'password_hash'      => Hash::make('lawyer123'),
                 'active'             => true,
                 'is_verified'        => true,
-                'license_number'     => $lawyerData['lic'],
+                'enrollment_no'     => $lawyerData['lic'],
                 'bar_association'    => 'Bar Council of India',
                 'specialization'     => $lawyerData['spec'],
                 'years_of_experience'=> $lawyerData['exp'],

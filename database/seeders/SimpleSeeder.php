@@ -41,7 +41,7 @@ class SimpleSeeder extends Seeder
                 'password_hash' => Hash::make('password'),
                 'active' => true,
                 'is_verified' => true,
-                'license_number' => 'AB123456',
+                'enrollment_no' => 'AB123456',
                 'bar_association' => 'Test Bar Association',
                 'specialization' => 'Criminal Law',
                 'years_of_experience' => 10,

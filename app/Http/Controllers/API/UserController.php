@@ -126,7 +126,8 @@ class UserController extends Controller
         $lawyer = \App\Models\Lawyer::where('email', $user->email)->first();
         if ($lawyer) {
             $userData['lawyer_data'] = [
-                'license_number' => $lawyer->license_number,
+                'enrollment_no' => $lawyer->enrollment_no,
+                'status' => $lawyer->status,
                 'bar_association' => $lawyer->bar_association,
                 'specialization' => $lawyer->specialization,
                 'years_of_experience' => $lawyer->years_of_experience,
