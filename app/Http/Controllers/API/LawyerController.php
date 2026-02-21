@@ -345,14 +345,22 @@ class LawyerController extends Controller
     public function appointments(\Illuminate\Http\Request $request, $id): \Illuminate\Http\JsonResponse
     {
         try {
-            // Check if $id refers to a User ID or a Lawyer ID
-            $lawyer = \App\Models\Lawyer::find($id);
-            
-            // If not found, check if it's a User ID that has a lawyer profile
-            if (!$lawyer) {
-                $user = \App\Models\User::find($id);
+            $lawyer = null;
+            if ($id === 'me') {
+                $user = auth()->user();
                 if ($user) {
                     $lawyer = $user->lawyer;
+                }
+            } else {
+                // Check if $id refers to a User ID or a Lawyer ID
+                $lawyer = \App\Models\Lawyer::find($id);
+                
+                // If not found, check if it's a User ID that has a lawyer profile
+                if (!$lawyer) {
+                    $user = \App\Models\User::find($id);
+                    if ($user) {
+                        $lawyer = $user->lawyer;
+                    }
                 }
             }
 
@@ -366,7 +374,11 @@ class LawyerController extends Controller
             $appointments = \App\Models\Appointment::where('lawyer_id', $lawyer->id)
                 ->with(['user:id,name,email,phone'])
                 ->orderBy('appointment_time', 'desc')
-                ->get();
+                ->get()
+                ->map(function($apt) {
+                    $apt->client_name = $apt->user ? $apt->user->name : 'Client';
+                    return $apt;
+                });
 
             return response()->json([
                 'success' => true,

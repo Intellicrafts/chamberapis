@@ -41,9 +41,19 @@ class ConsultationSessionController extends Controller
         try {
             $appointment = Appointment::with(['user', 'lawyer'])->findOrFail($appointmentId);
             $userId = auth()->id();
+            $user = auth()->user();
+
+            $isParticipant = false;
+            if ($appointment->user_id == $userId) {
+                $isParticipant = true;
+            } elseif ($user && $user->lawyer && $user->lawyer->id == $appointment->lawyer_id) {
+                $isParticipant = true;
+            } elseif ($appointment->lawyer_id == $userId) {
+                $isParticipant = true;
+            }
 
             // Verify user is a participant
-            if ($appointment->user_id != $userId && $appointment->lawyer_id != $userId) {
+            if (!$isParticipant) {
                 return response()->json([
                     'error' => 'Unauthorized'
                 ], 403);
@@ -153,15 +163,17 @@ class ConsultationSessionController extends Controller
      */
     protected function joinExistingSession(ConsultationSession $session, int $userId)
     {
+        $isClient = ($userId == $session->user_id);
+
         // Mark participant as joined
-        if ($userId == $session->user_id && !$session->user_joined_at) {
+        if ($isClient && !$session->user_joined_at) {
             $session->markUserJoined();
             
             ConsultationMessage::createSystemMessage(
                 $session->id,
                 'User joined the consultation'
             );
-        } elseif ($userId == $session->lawyer_id && !$session->lawyer_joined_at) {
+        } elseif (!$isClient && !$session->lawyer_joined_at) {
             $session->markLawyerJoined();
             
             ConsultationMessage::createSystemMessage(
@@ -173,7 +185,7 @@ class ConsultationSessionController extends Controller
         // Broadcast join event
         try {
             $user = auth()->user();
-            $userType = $userId == $session->user_id ? 'user' : 'lawyer';
+            $userType = $isClient ? 'user' : 'lawyer';
             broadcast(new UserJoinedConsultation($session, $userId, $user->name, $userType))->toOthers();
         } catch (\Exception $e) {
             Log::info('Broadcasting not configured for join event: ' . $e->getMessage());

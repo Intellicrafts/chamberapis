@@ -40,6 +40,7 @@ class Lawyer extends Model
      * @var array
      */
     protected $appends = [
+        'name',
     ];
 
     protected function casts(): array
@@ -143,6 +144,14 @@ class Lawyer extends Model
         return $this->profile_picture_url 
             ? asset('storage/lawyers/' . $this->profile_picture_url)
             : asset('images/default-lawyer.png');
+    }
+    
+    /**
+     * Get name matching User model interface
+     */
+    public function getNameAttribute(): string
+    {
+        return $this->full_name;
     }
     
     /**

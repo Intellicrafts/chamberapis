@@ -30,10 +30,14 @@ public function index($userId)
     $lawyerId = $lawyer->id;
 
     // Fetch upcoming appointments for the lawyer using the correct lawyer_id
-    $upcomingAppointments = Appointment::where('lawyer_id', $lawyerId)
+    $upcomingAppointments = Appointment::with('user')->where('lawyer_id', $lawyerId)
         ->upcoming()
         ->orderBy('appointment_time', 'asc')
-        ->get();
+        ->get()
+        ->map(function($apt) {
+            $apt->client_name = $apt->user ? $apt->user->name : 'Client';
+            return $apt;
+        });
 
     // Count active cases for the lawyer
     $activeCasesCount = LawyersCase::where('lawyer_id', $lawyerId)->count();
@@ -50,14 +54,18 @@ public function index($userId)
 
 
     // Today's appointments with status = scheduled
-    $todaysAppointments = Appointment::where('lawyer_id', $lawyerId)
+    $todaysAppointments = Appointment::with('user')->where('lawyer_id', $lawyerId)
         ->whereBetween('appointment_time', [
             Carbon::today()->startOfDay(),
             Carbon::today()->endOfDay()
         ])
         ->where('status', Appointment::STATUS_SCHEDULED)
         ->orderBy('appointment_time', 'asc')
-        ->get();
+        ->get()
+        ->map(function($apt) {
+            $apt->client_name = $apt->user ? $apt->user->name : 'Client';
+            return $apt;
+        });
     
 
 

@@ -87,7 +87,7 @@ class ConsultationSession extends Model
      */
     public function lawyer(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'lawyer_id');
+        return $this->belongsTo(Lawyer::class, 'lawyer_id');
     }
 
     /**
@@ -149,12 +149,16 @@ class ConsultationSession extends Model
         return now()->greaterThan($this->scheduled_end_time);
     }
 
-    /**
-     * Check if user is a participant
-     */
     public function isParticipant(int $userId): bool
     {
-        return $this->user_id === $userId || $this->lawyer_id === $userId;
+        if ($this->user_id === $userId) return true;
+        
+        $user = \App\Models\User::find($userId);
+        if ($user && $user->lawyer && $user->lawyer->id === $this->lawyer_id) {
+            return true;
+        }
+
+        return $this->lawyer_id === $userId;
     }
 
     /**
@@ -265,14 +269,17 @@ class ConsultationSession extends Model
             ->where('scheduled_end_time', '>=', $now);
     }
 
-    /**
-     * Scope for user's sessions
-     */
     public function scopeForUser($query, int $userId)
     {
-        return $query->where(function ($q) use ($userId) {
-            $q->where('user_id', $userId)
-              ->orWhere('lawyer_id', $userId);
+        $user = \App\Models\User::find($userId);
+        $lawyerId = $user && $user->lawyer ? $user->lawyer->id : null;
+
+        return $query->where(function ($q) use ($userId, $lawyerId) {
+            $q->where('user_id', $userId);
+            if ($lawyerId) {
+                $q->orWhere('lawyer_id', $lawyerId);
+            }
+            $q->orWhere('lawyer_id', $userId);
         });
     }
 }
