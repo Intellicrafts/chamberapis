@@ -87,6 +87,7 @@ class AuthController extends Controller
 
                     // Create lawyer record
                     $lawyer = Lawyer::create([
+                        'user_id' => $user->id,
                         'full_name' => $sanitizedName,
                         'email' => $sanitizedEmail,
                         'password_hash' => Hash::make($request->password),
