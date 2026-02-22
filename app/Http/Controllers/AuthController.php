@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Lawyer;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use App\Models\LawyerEnrollmentStatusLog;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -98,7 +99,13 @@ class AuthController extends Controller
                         'years_of_experience' => $request->years_of_experience ?? 0,
                         'bio' => $request->bio ? trim(strip_tags($request->bio)) : null,
                         'consultation_fee' => $request->consultation_fee ?? 0.00,
-                        'status' => 'pending',
+                        'status' => '0',
+                    ]);
+
+                    // Log initial status
+                    LawyerEnrollmentStatusLog::create([
+                        'user_id' => $user->id,
+                        'status' => '0'
                     ]);
                 }
 
