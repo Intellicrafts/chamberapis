@@ -13,8 +13,9 @@ use App\Http\Controllers\API\AvailabilitySlotController;
 use App\Http\Controllers\API\LegalQueryController;
 use App\Http\Controllers\API\AppointmentController;
 use App\Http\Controllers\API\LawyerController;
+use App\Http\Controllers\API\LawyerEnrollmentController;
 use App\Http\Controllers\API\NotificationController;
-use App\Http\Controllers\API\LawyerAdminController;
+use App\Http\Controllers\API\LawyerAdminBController;
 use App\Http\Controllers\API\LawyerCaseController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\LawyerAdditionalController;
@@ -273,6 +274,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{lawyer}', [LawyerController::class, 'update'])->name('update');
         Route::delete('/{lawyer}', [LawyerController::class, 'destroy'])->name('destroy');
         Route::get('/lawyer-details', [LawyerController::class, 'lawyer_with_details'])->name('lawyer-details');
+
+        // Status Endpoints
+        Route::post('/update_enrollment_status', [LawyerEnrollmentController::class, 'updateEnrollmentStatus'])->name('update-enrollment-status');
+        Route::post('/get_enrollment_status', [LawyerEnrollmentController::class, 'getEnrollmentStatus'])->name('get-enrollment-status');
 
         // Filtered/Query Operations
         Route::get('/specialization/{specialization}', [LawyerController::class, 'bySpecialization'])->name('by-specialization');
