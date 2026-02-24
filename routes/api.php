@@ -267,13 +267,16 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
         Route::prefix('lawyers')->name('lawyers.')->group(function () {
+        // Custom endpoints first to prevent /{lawyer} parameter catching them
+        Route::get('/lawyer-details', [LawyerController::class, 'lawyer_with_details'])->name('lawyer-details');
+        
         // Standard CRUD Operations (you can adjust access control as needed)
         Route::get('/', [LawyerController::class, 'index'])->name('index');
         Route::post('/', [LawyerController::class, 'store'])->name('store');
         Route::get('/{lawyer}', [LawyerController::class, 'show'])->name('show');
         Route::put('/{lawyer}', [LawyerController::class, 'update'])->name('update');
+        Route::post('/{lawyer}', [LawyerController::class, 'update'])->name('update-post'); // New POST route to handle form-data updates easily
         Route::delete('/{lawyer}', [LawyerController::class, 'destroy'])->name('destroy');
-        Route::get('/lawyer-details', [LawyerController::class, 'lawyer_with_details'])->name('lawyer-details');
 
         // Status Endpoints
         Route::post('/update_enrollment_status', [LawyerEnrollmentController::class, 'updateEnrollmentStatus'])->name('update-enrollment-status');
