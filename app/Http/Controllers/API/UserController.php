@@ -451,30 +451,35 @@ class UserController extends Controller
     }
 
     /**
-     * Normalize consultation_fee input to array of service objects.
+     * Normalize consultation_fee input (number, JSON, or array payload) to decimal value.
      */
-    private function normalizeConsultationFee($input): array
+    private function normalizeConsultationFee($input): float
     {
-        if (is_array($input)) {
-            return $input;
+        if ($input === null || $input === '') {
+            return 0.0;
+        }
+
+        if (is_numeric($input)) {
+            return (float) $input;
         }
 
         if (is_string($input)) {
             $decoded = json_decode($input, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                return $decoded;
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $this->normalizeConsultationFee($decoded);
             }
         }
 
-        $numeric = is_numeric($input) ? (float) $input : 0.0;
+        if (is_array($input)) {
+            if (array_key_exists('rate', $input) && is_numeric($input['rate'])) {
+                return (float) $input['rate'];
+            }
 
-        return [[
-            'service_code' => 'appointment',
-            'service_name' => 'Appointment Consultation',
-            'billing_model' => 'per_minute',
-            'rate' => $numeric,
-            'currency' => 'INR',
-            'is_active' => true,
-        ]];
+            if (isset($input[0]) && is_array($input[0]) && array_key_exists('rate', $input[0]) && is_numeric($input[0]['rate'])) {
+                return (float) $input[0]['rate'];
+            }
+        }
+
+        return 0.0;
     }
 }

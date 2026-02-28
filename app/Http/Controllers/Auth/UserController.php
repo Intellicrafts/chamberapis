@@ -389,7 +389,7 @@ public function updateProfile(Request $request)
                 $lawyer = \App\Models\Lawyer::where('email', $user->email)->first();
                 if ($lawyer) {
                     $payload = $lawyerData['lawyer_data'];
-                    // Normalize consultation_fee to array
+                    // Normalize consultation_fee to decimal value
                     if (array_key_exists('consultation_fee', $payload)) {
                         $payload['consultation_fee'] = $this->normalizeConsultationFee($payload['consultation_fee']);
                     }
@@ -432,24 +432,36 @@ public function updateProfile(Request $request)
     }
 
     /**
-     * Normalize consultation_fee input to array of service objects.
+     * Normalize consultation_fee input (number, JSON, or array payload) to decimal value.
      */
-    private function normalizeConsultationFee($input): array
+    private function normalizeConsultationFee($input): float
     {
-        if (is_array($input)) return $input;
+        if ($input === null || $input === '') {
+            return 0.0;
+        }
+
+        if (is_numeric($input)) {
+            return (float) $input;
+        }
+
         if (is_string($input)) {
             $decoded = json_decode($input, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) return $decoded;
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $this->normalizeConsultationFee($decoded);
+            }
         }
-        $numeric = is_numeric($input) ? floatval($input) : 0;
-        return [[
-            'service_code' => 'appointment',
-            'service_name' => 'Appointment Consultation',
-            'billing_model' => 'per_minute',
-            'rate' => $numeric,
-            'currency' => 'INR',
-            'is_active' => true,
-        ]];
+
+        if (is_array($input)) {
+            if (array_key_exists('rate', $input) && is_numeric($input['rate'])) {
+                return (float) $input['rate'];
+            }
+
+            if (isset($input[0]) && is_array($input[0]) && array_key_exists('rate', $input[0]) && is_numeric($input[0]['rate'])) {
+                return (float) $input[0]['rate'];
+            }
+        }
+
+        return 0.0;
     }
 
     public function fetchUser(Request $request){
