@@ -39,6 +39,7 @@ class AuthController extends Controller
             'name' => 'required|string|max:255|regex:/^[a-zA-Z\s]+$/',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]/',
+            'phone' => 'required|string|max:20',
             'account_type' => 'nullable',
             'enrollment_no' => 'required_if:account_type,business,lawyer|string|max:50',
             'specialization' => 'required_if:account_type,business,lawyer|string|max:255',
@@ -67,12 +68,14 @@ class AuthController extends Controller
                 $sanitizedName = trim(strip_tags($request->name));
                 $sanitizedEmail = strtolower(trim($request->email));
                 $accountType = $request->account_type ?? 'user';
+                $phone = $request->phone ? trim(strip_tags($request->phone)) : null;
                 
                 // Create user
                 $user = User::create([
                     'name' => $sanitizedName,
                     'email' => $sanitizedEmail,
                     'password' => Hash::make($request->password),
+                    'phone' => $phone,
                     'user_type' => $accountType,
                 ]);
 
@@ -130,6 +133,7 @@ class AuthController extends Controller
                         'id' => $user->id,
                         'name' => $user->name,
                         'email' => $user->email,
+                        'phone' => $user->phone,
                         'user_type' => $user->user_type,
                         'created_at' => $user->created_at,
                     ]
