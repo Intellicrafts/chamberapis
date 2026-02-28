@@ -200,11 +200,10 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * Get the lawyer profile associated with the user
-     * This is used for business users who are also lawyers
      */
     public function lawyer(): HasOne
     {
-        return $this->hasOne(Lawyer::class, 'email', 'email');
+        return $this->hasOne(Lawyer::class, 'user_id');
     }
 
     /**

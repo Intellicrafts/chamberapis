@@ -174,6 +174,6 @@ class Lawyer extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'email', 'email');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
