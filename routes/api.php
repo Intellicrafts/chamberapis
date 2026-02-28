@@ -267,33 +267,35 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
         Route::prefix('lawyers')->name('lawyers.')->group(function () {
-        // Custom endpoints first to prevent /{lawyer} parameter catching them
+
+        // ─ 1. STATIC / NAMED SEGMENT ROUTES first (must be before wildcard /{lawyer}) ─
+
+        // Custom detail endpoint
         Route::get('/lawyer-details', [LawyerController::class, 'lawyer_with_details'])->name('lawyer-details');
-        
-        // Standard CRUD Operations (you can adjust access control as needed)
+
+        // Collection / index
         Route::get('/', [LawyerController::class, 'index'])->name('index');
         Route::post('/', [LawyerController::class, 'store'])->name('store');
-        Route::get('/{lawyer}', [LawyerController::class, 'show'])->name('show');
-        Route::put('/{lawyer}', [LawyerController::class, 'update'])->name('update');
-        Route::post('/{lawyer}', [LawyerController::class, 'update'])->name('update-post'); // New POST route to handle form-data updates easily
-        Route::delete('/{lawyer}', [LawyerController::class, 'destroy'])->name('destroy');
 
-        // Status Endpoints
+        // Status endpoints (POST with literal path — MUST be before POST /{lawyer})
         Route::post('/update_enrollment_status', [LawyerEnrollmentController::class, 'updateEnrollmentStatus'])->name('update-enrollment-status');
         Route::post('/get_enrollment_status', [LawyerEnrollmentController::class, 'getEnrollmentStatus'])->name('get-enrollment-status');
 
-        // Filtered/Query Operations
-        Route::get('/specialization/{specialization}', [LawyerController::class, 'bySpecialization'])->name('by-specialization');
+        // Filtered / query operations (GET with literal path — MUST be before GET /{lawyer})
         Route::get('/active/all', [LawyerController::class, 'getActive'])->name('active');
         Route::get('/verified/all', [LawyerController::class, 'getVerified'])->name('verified');
+        Route::get('/specialization/{specialization}', [LawyerController::class, 'bySpecialization'])->name('by-specialization');
 
-        // Public Profile Info
+        // ─ 2. WILDCARD /{lawyer} ROUTES last ──────────────────────────────────────────
+
+        Route::get('/{lawyer}', [LawyerController::class, 'show'])->name('show');
+        Route::put('/{lawyer}', [LawyerController::class, 'update'])->name('update');
+        Route::post('/{lawyer}', [LawyerController::class, 'update'])->name('update-post'); // form-data support
+        Route::delete('/{lawyer}', [LawyerController::class, 'destroy'])->name('destroy');
+
+        // Sub-resource routes under /{lawyer}
         Route::get('/{lawyer}/profile', [LawyerController::class, 'publicProfile'])->name('profile');
-
-        // Availability Slots for a specific lawyer
         Route::get('/{lawyer}/available-today', [LawyerController::class, 'todayAvailableSlots'])->name('available-today');
-        
-        // Appointments for a specific lawyer (Frontend compatibility)
         Route::get('/{id}/appointments', [LawyerController::class, 'appointments'])->name('appointments');
     });
 
