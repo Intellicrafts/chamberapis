@@ -69,6 +69,12 @@ class AuthController extends Controller
                 $sanitizedEmail = strtolower(trim($request->email));
                 $accountType = $request->account_type ?? 'user';
                 $phone = $request->phone ? trim(strip_tags($request->phone)) : null;
+
+                // Map account type to user_type integer
+                $userTypeInt = 1; // Default to client
+                if (in_array($accountType, ['business', 'lawyer', 2, '2'])) {
+                    $userTypeInt = 2;
+                }
                 
                 // Create user
                 $user = User::create([
@@ -76,13 +82,14 @@ class AuthController extends Controller
                     'email' => $sanitizedEmail,
                     'password' => Hash::make($request->password),
                     'phone' => $phone,
-                    'user_type' => $accountType,
+                    'user_type' => $userTypeInt,
+                    'role' => $userTypeInt == 2 ? 'lawyer' : 'user',
                 ]);
 
                 $lawyer = null;
                 
-                // Check if user type is business, lawyer, or numeric 2
-                if (in_array($accountType, ['business', 'lawyer', 2], true) || $accountType == 2) {
+                // Create lawyer record if user_type is 2
+                if ($userTypeInt == 2) {
                     // Ensure unique enrollment number
                     $enrollmentNo = $request->enrollment_no;
                     if (Lawyer::where('enrollment_no', $enrollmentNo)->exists()) {
@@ -118,7 +125,7 @@ class AuthController extends Controller
                 \Log::info('Registration successful', [
                     'user_id' => $user->id,
                     'email' => $user->email,
-                    'account_type' => $accountType
+                    'user_type' => $userTypeInt
                 ]);
 
                 // Clear rate limiter on success
