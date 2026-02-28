@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
+use App\Services\Mail\AppMailService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -64,7 +65,7 @@ class AppointmentController extends Controller
     /**
      * Store a newly created appointment.
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, AppMailService $mailService): JsonResponse
     {
         try {
             $validated = $request->validate([
@@ -83,7 +84,26 @@ class AppointmentController extends Controller
             }
 
             $appointment = Appointment::create($validated);
-            $appointment->load(['user:id,name', 'lawyer:id,full_name']);
+            $appointment->load(['user:id,name,email', 'lawyer:id,user_id,full_name,email', 'lawyer.user:id,email']);
+
+            try {
+                $lawyerOfficialEmail = $appointment->lawyer?->email ?: $appointment->lawyer?->user?->email;
+
+                $mailService->sendAppointmentBookedNotifications([
+                    'id' => $appointment->id,
+                    'appointment_time' => optional($appointment->appointment_time)->toDateTimeString(),
+                    'duration_minutes' => $appointment->duration_minutes,
+                    'status' => $appointment->status,
+                    'meeting_link' => $appointment->meeting_link,
+                    'user_name' => $appointment->user?->name,
+                    'user_email' => $appointment->user?->email,
+                    'lawyer_name' => $appointment->lawyer?->full_name,
+                    'lawyer_email' => $appointment->lawyer?->email,
+                    'lawyer_official_email' => $lawyerOfficialEmail,
+                ]);
+            } catch (\Throwable $mailException) {
+                report($mailException);
+            }
 
             return response()->json([
                 'success' => true,

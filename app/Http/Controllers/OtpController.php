@@ -7,16 +7,14 @@ use App\Models\User;
 use App\Models\OtpVerification;
 
 use App\Http\Controllers\Auth\UserController;
-
-use App\Mail\SendOtpMail;
-use Illuminate\Support\Facades\Mail;
+use App\Services\Mail\AppMailService;
 use App\Traits\JsonResponseTrait;
 
 
 class OtpController extends Controller
 {
     use JsonResponseTrait;
-    public function sendOtp(Request $request)
+    public function sendOtp(Request $request, AppMailService $mailService)
     {
         $request->validate([
             'email' => 'required|email',
@@ -46,7 +44,8 @@ class OtpController extends Controller
         $otpModal = OtpVerification::create($data);
 
         try {
-            Mail::to($request->email)->send(new SendOtpMail($otp));
+            $title = $request->label === 'reset_password' ? 'Password Reset OTP' : 'Email Verification OTP';
+            $mailService->sendOtp($request->email, (string) $otp, $title);
         } catch (\Exception $e) {
             $otpModal->delete();
             return $this->exceptionHandler($e, 'Failed to send OTP email. Please try again later.', 500);

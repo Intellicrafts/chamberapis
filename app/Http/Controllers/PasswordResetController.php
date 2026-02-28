@@ -4,15 +4,15 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 use App\Models\User;
+use App\Services\Mail\AppMailService;
 
 class PasswordResetController extends Controller
 {
     // Send OTP
-    public function sendOtp(Request $request)
+    public function sendOtp(Request $request, AppMailService $mailService)
     {
         $request->validate(['email' => 'required|email']);
 
@@ -26,11 +26,7 @@ class PasswordResetController extends Controller
             ]
         );
 
-        // Send OTP via email
-        Mail::raw("Your OTP is: $otp", function ($message) use ($request) {
-            $message->to($request->email)
-                    ->subject('Password Reset OTP');
-        });
+        $mailService->sendPasswordResetOtp($request->email, (string) $otp);
 
         return response()->json(['message' => 'OTP sent to your email']);
     }

@@ -114,7 +114,7 @@ class LawyerController extends Controller
                         'password'    => Hash::make($request->password),
                         'phone'       => $validated['phone_number'],
                         'user_type'   => 2, // 2 = Lawyer
-                        'role'        => null, // Nullable to bypass enum restrictions if 'lawyer' is missing
+                        'role'        => 'lawyer',
                         'active'      => true,
                         'is_verified' => false,
                     ]);
@@ -122,10 +122,14 @@ class LawyerController extends Controller
                     \Log::info("New user account created successfully for lawyer: {$user->email}");
                 } else {
                     // Scenario B: User exists (e.g. registered as client). We map to them.
-                    // We update their user_type to 2 (Lawyer) to ensure they have correct access.
-                    if ($user->user_type != 2) {
-                        $user->update(['user_type' => 2]);
-                        \Log::info("Existing user [ID: {$user->id}] updated to Lawyer type.");
+                    // We update their user_type to 2 (Lawyer) and role to 'lawyer'
+                    $updateData = [];
+                    if ($user->user_type != 2) $updateData['user_type'] = 2;
+                    if ($user->role !== 'lawyer') $updateData['role'] = 'lawyer';
+                    
+                    if (!empty($updateData)) {
+                        $user->update($updateData);
+                        \Log::info("Existing user [ID: {$user->id}] updated to Lawyer type/role.");
                     }
                 }
 
