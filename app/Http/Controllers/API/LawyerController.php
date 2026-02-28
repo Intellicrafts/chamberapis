@@ -98,21 +98,22 @@ class LawyerController extends Controller
                     'email' => $validated['email'],
                     'password' => Hash::make($request->password),
                     'phone' => $validated['phone_number'],
-                    'user_type' => \App\Models\User::USER_TYPE_LAWYER,
+                    'user_type' => 2, // Explicitly send 2 for Lawyer
                     'role' => 'lawyer',
                     'active' => true,
                     'is_verified' => false,
                 ]);
             } else {
-                // If user exists, optionally update their type to lawyer if not set
-                if ($user->user_type !== \App\Models\User::USER_TYPE_LAWYER) {
-                    $user->update(['user_type' => \App\Models\User::USER_TYPE_LAWYER]);
+                // If user exists, ensure their type is set to 2 (Lawyer)
+                if ($user->user_type != 2) {
+                    $user->update(['user_type' => 2]);
                 }
             }
 
             // 3. Prepare lawyer data
             $lawyerData = $validated;
             $lawyerData['user_id'] = $user->id; // Map the information
+            $lawyerData['status'] = '0'; // Default status
             
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
@@ -120,7 +121,7 @@ class LawyerController extends Controller
                     ->store('lawyers', 'public');
             }
 
-            // Hash password for lawyer table (if redundant, but keeping consistency with existing schema)
+            // Hash password for lawyer table
             $lawyerData['password_hash'] = Hash::make($request->password);
             unset($lawyerData['password']);
 
@@ -131,7 +132,8 @@ class LawyerController extends Controller
                 'success' => true,
                 'data' => [
                     'lawyer' => $lawyer,
-                    'user_id' => $user->id
+                    'user_id' => $user->id,
+                    'user_type' => 2
                 ],
                 'message' => 'Lawyer created and mapped to user successfully'
             ], 201);
