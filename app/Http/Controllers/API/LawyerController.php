@@ -69,6 +69,7 @@ class LawyerController extends Controller
 
     /**
      * Store a newly created lawyer.
+     * Links to an existing User if email matches, or creates a new User if not.
      */
     public function store(Request $request): JsonResponse
     {
@@ -87,22 +88,52 @@ class LawyerController extends Controller
                 'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
             ]);
 
+            // 1. Check if user exists in the users table
+            $user = \App\Models\User::where('email', $validated['email'])->first();
+
+            // 2. If user doesn't exist, create a new user profile
+            if (!$user) {
+                $user = \App\Models\User::create([
+                    'name' => $validated['full_name'],
+                    'email' => $validated['email'],
+                    'password' => Hash::make($request->password),
+                    'phone' => $validated['phone_number'],
+                    'user_type' => \App\Models\User::USER_TYPE_LAWYER,
+                    'role' => 'lawyer',
+                    'active' => true,
+                    'is_verified' => false,
+                ]);
+            } else {
+                // If user exists, optionally update their type to lawyer if not set
+                if ($user->user_type !== \App\Models\User::USER_TYPE_LAWYER) {
+                    $user->update(['user_type' => \App\Models\User::USER_TYPE_LAWYER]);
+                }
+            }
+
+            // 3. Prepare lawyer data
+            $lawyerData = $validated;
+            $lawyerData['user_id'] = $user->id; // Map the information
+            
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
-                $validated['profile_picture_url'] = $request->file('profile_picture')
+                $lawyerData['profile_picture_url'] = $request->file('profile_picture')
                     ->store('lawyers', 'public');
             }
 
-            // Hash password
-            $validated['password_hash'] = Hash::make($validated['password']);
-            unset($validated['password']);
+            // Hash password for lawyer table (if redundant, but keeping consistency with existing schema)
+            $lawyerData['password_hash'] = Hash::make($request->password);
+            unset($lawyerData['password']);
 
-            $lawyer = Lawyer::create($validated);
+            // 4. Create the Lawyer record
+            $lawyer = Lawyer::create($lawyerData);
 
             return response()->json([
                 'success' => true,
-                'data' => $lawyer,
-                'message' => 'Lawyer created successfully'
+                'data' => [
+                    'lawyer' => $lawyer,
+                    'user_id' => $user->id
+                ],
+                'message' => 'Lawyer created and mapped to user successfully'
             ], 201);
 
         } catch (ValidationException $e) {
