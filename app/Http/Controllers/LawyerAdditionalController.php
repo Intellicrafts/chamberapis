@@ -43,7 +43,7 @@ class LawyerAdditionalController extends Controller
                     Rule::unique('lawyer_additional_details')->ignore($user->id, 'user_id')
                 ],
                 'experience_years' => 'required|integer|min:0|max:60',
-                'consultation_fee' => 'required|numeric|min:0|max:999999.99',
+                'consultation_fee' => 'required',
                 'practice_areas' => 'required|string', // JSON string from frontend
                 'court_practice' => 'required|string', // JSON string from frontend
                 'languages_spoken' => 'required|string', // JSON string from frontend
@@ -59,7 +59,6 @@ class LawyerAdditionalController extends Controller
                 'experience_years.min' => 'Experience years cannot be negative',
                 'experience_years.max' => 'Experience years seems too high',
                 'consultation_fee.required' => 'Consultation fee is required',
-                'consultation_fee.min' => 'Consultation fee cannot be negative',
                 'practice_areas.required' => 'At least one practice area is required',
                 'court_practice.required' => 'At least one court of practice is required',
                 'languages_spoken.required' => 'At least one language is required',
@@ -83,6 +82,10 @@ class LawyerAdditionalController extends Controller
                 ], 422);
             }
 
+            // Normalize consultation_fee to array of service objects
+            $consultationFeeRaw = $request->consultation_fee;
+            $consultationFee = $this->normalizeConsultationFee($consultationFeeRaw);
+
             // Parse JSON strings
             $practiceAreas = json_decode($request->practice_areas, true);
             $courtPractice = json_decode($request->court_practice, true);
@@ -104,7 +107,7 @@ class LawyerAdditionalController extends Controller
                 [
                     'enrollment_no' => $request->enrollment_no,
                     'experience_years' => $request->experience_years,
-                    'consultation_fee' => $request->consultation_fee,
+                    'consultation_fee' => $consultationFee,
                     'practice_areas' => $practiceAreas,
                     'court_practice' => $courtPractice,
                     'languages_spoken' => $languagesSpoken,
@@ -140,6 +143,37 @@ class LawyerAdditionalController extends Controller
                 'message' => 'An error occurred while saving details. Please try again.'
             ], 500);
         }
+    }
+
+    /**
+     * Normalize consultation_fee input (numeric, JSON string, or array) into
+     * an array of service objects.
+     */
+    private function normalizeConsultationFee($input): array
+    {
+        // Already array
+        if (is_array($input)) {
+            return $input;
+        }
+
+        // JSON string
+        if (is_string($input)) {
+            $decoded = json_decode($input, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        // Fallback numeric
+        $numeric = is_numeric($input) ? floatval($input) : 0;
+        return [[
+            'service_code' => 'appointment',
+            'service_name' => 'Appointment Consultation',
+            'billing_model' => 'per_minute',
+            'rate' => $numeric,
+            'currency' => 'INR',
+            'is_active' => true,
+        ]];
     }
 
     /**
@@ -367,6 +401,83 @@ class LawyerAdditionalController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'An error occurred while searching lawyers'
+            ], 500);
+        }
+    }
+}
+    /**
+     * Handle Satyapan verification success.
+     */
+    public function verifySatyapan(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'satyapan_response' => 'required|array',
+                'satyapan_response.status' => 'required|string',
+                'notes' => 'nullable|string|max:500',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Find lawyer additional details
+            $lawyerDetails = LawyerAdditional::where('user_id', $user->id)->first();
+
+            if (!$lawyerDetails) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lawyer profile not found. Please complete your profile first.'
+                ], 404);
+            }
+
+            // Update LawyerAdditional status
+            $lawyerDetails->update([
+                'verification_status' => 'verified',
+                'verified_at' => now(),
+                'verified_by' => null, // Verified via automated API
+                'verification_notes' => $request->notes ?? 'Verified via Satyapan API Success Response',
+            ]);
+
+            // Sync with main Lawyer model
+            $lawyer = Lawyer::where('email', $user->email)->first();
+            if ($lawyer) {
+                $lawyer->update([
+                    'is_verified' => true,
+                    'active' => true, // Automatically activate upon verification
+                    'consultation_fee' => $consultationFee,
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Account successfully verified via Satyapan API.',
+                'data' => [
+                    'verification_status' => 'verified',
+                    'is_verified' => true,
+                    'verified_at' => $lawyerDetails->verified_at
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in Satyapan verification: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during verification'
             ], 500);
         }
     }

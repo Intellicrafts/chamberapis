@@ -52,7 +52,7 @@ class Lawyer extends Model
             'is_verified' => 'boolean',
             'deleted' => 'boolean',
             'years_of_experience' => 'integer',
-            'consultation_fee' => 'decimal:2',
+            'consultation_fee' => 'array',
         ];
     }
 

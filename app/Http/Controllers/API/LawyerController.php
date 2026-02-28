@@ -78,21 +78,20 @@ class LawyerController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        return DB::transaction(function () use ($request) {
-            try {
-                $validated = $request->validate([
-                    'full_name'           => 'required|string|max:255',
-                    'email'               => 'required|email|unique:lawyers,email',
-                    'phone_number'        => 'nullable|string|max:20',
-                    'password'            => 'required|string|min:8',
-                    'enrollment_no'       => 'required|string|unique:lawyers,enrollment_no',
-                    'bar_association'     => 'nullable|string|max:255',
-                    'specialization'      => 'nullable|string|max:255',
-                    'years_of_experience' => 'nullable|integer|min:0',
-                    'bio'                 => 'nullable|string',
-                    'consultation_fee'    => 'nullable|numeric|min:0',
-                    'profile_picture'     => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-                ]);
+        try {
+            $validated = $request->validate([
+                'full_name' => 'required|string|max:255',
+                'email' => 'required|email|unique:lawyers,email',
+                'phone_number' => 'nullable|string|max:20',
+                'password' => 'required|string|min:8',
+                'enrollment_no' => 'required|string|unique:lawyers,enrollment_no',
+                'bar_association' => 'nullable|string|max:255',
+                'specialization' => 'nullable|string|max:255',
+                'years_of_experience' => 'nullable|integer|min:0',
+                'bio' => 'nullable|string',
+                'consultation_fee' => 'nullable',
+                'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
 
                 // STEP 1: COLLECT USER INFORMATION
                 // We must ensure an entry exists in the 'users' table before proceeding.
@@ -228,22 +227,21 @@ class LawyerController extends Controller
      */
     public function update(Request $request, Lawyer $lawyer): JsonResponse
     {
-        return DB::transaction(function () use ($request, $lawyer) {
-            try {
-                $validated = $request->validate([
-                    'full_name'           => 'sometimes|required|string|max:255',
-                    'email'               => 'sometimes|required|email|unique:lawyers,email,' . $lawyer->id,
-                    'phone_number'        => 'sometimes|nullable|string|max:20',
-                    'enrollment_no'       => 'sometimes|required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
-                    'bar_association'     => 'sometimes|nullable|string|max:255',
-                    'specialization'      => 'sometimes|nullable|string|max:255',
-                    'years_of_experience' => 'sometimes|nullable|integer|min:0',
-                    'bio'                 => 'sometimes|nullable|string',
-                    'consultation_fee'    => 'sometimes|nullable|numeric|min:0',
-                    'active'              => 'sometimes|boolean',
-                    'is_verified'         => 'sometimes|boolean',
-                    'profile_picture'     => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                ]);
+        try {
+            $validated = $request->validate([
+                'full_name' => 'required|string|max:255',
+                'email' => 'required|email|unique:lawyers,email,' . $lawyer->id,
+                'phone_number' => 'nullable|string|max:20',
+                'enrollment_no' => 'required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
+                'bar_association' => 'nullable|string|max:255',
+                'specialization' => 'nullable|string|max:255',
+                'years_of_experience' => 'nullable|integer|min:0',
+                'bio' => 'nullable|string',
+                'consultation_fee' => 'nullable',
+                'active' => 'boolean',
+                'is_verified' => 'boolean',
+                'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
 
                 // 1. SYNC WITH USER TABLE FIRST
                 // We fetch the linked user via our defined relationship
