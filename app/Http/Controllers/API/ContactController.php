@@ -4,6 +4,8 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
+use App\Models\User;
+use App\Services\Mail\AppMailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -17,23 +19,66 @@ class ContactController extends Controller
     }
 
     // POST: Store new contact
-    public function store(Request $request)
+    public function store(Request $request, AppMailService $mailService)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'full_name' => 'required|string|max:255',
-            'email_address' => 'required|email',
+            'user_id' => 'nullable|exists:users,id',
+            'name' => 'nullable|string|max:255',
+            'full_name' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'email_address' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:20',
             'phone_number' => 'nullable|string|max:20',
             'company' => 'nullable|string|max:255',
+            'service' => 'nullable|string|max:255',
             'service_interested' => 'nullable|string|max:255',
             'subject' => 'nullable|string|max:255',
-            'message' => 'required|string|min:10',
+            'message' => 'required|string|min:10|max:5000',
         ]);
 
-        // $validated['user_id'] = Auth::id();
-        $validated['user_id'] = '1';
+        $fullName = trim((string) ($validated['full_name'] ?? $validated['name'] ?? ''));
+        $email = trim((string) ($validated['email_address'] ?? $validated['email'] ?? ''));
 
-        $contact = Contact::create($validated);
+        if ($fullName === '') {
+            return response()->json([
+                'message' => 'The name field is required.',
+                'errors' => ['name' => ['The name field is required.']],
+            ], 422);
+        }
+
+        if ($email === '') {
+            return response()->json([
+                'message' => 'The email field is required.',
+                'errors' => ['email' => ['The email field is required.']],
+            ], 422);
+        }
+
+        $fallbackUserId = env('CONTACT_FALLBACK_USER_ID');
+        $userId = Auth::id() ?? ($validated['user_id'] ?? null) ?? $fallbackUserId ?? User::query()->value('id');
+        if (!$userId) {
+            return response()->json([
+                'message' => 'No user available to associate this contact record.',
+            ], 422);
+        }
+
+        $contactPayload = [
+            'user_id' => $userId,
+            'full_name' => $fullName,
+            'email_address' => $email,
+            'phone_number' => $validated['phone_number'] ?? $validated['phone'] ?? null,
+            'company' => $validated['company'] ?? null,
+            'service_interested' => $validated['service_interested'] ?? $validated['service'] ?? null,
+            'subject' => $validated['subject'] ?? null,
+            'message' => $validated['message'],
+        ];
+
+        $contact = Contact::create($contactPayload);
+
+        try {
+            $mailService->sendContactNotifications($contact->toArray());
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
 
         return response()->json(['message' => 'Contact submitted successfully', 'contact' => $contact], 201);
     }

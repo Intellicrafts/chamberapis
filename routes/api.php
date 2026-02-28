@@ -20,6 +20,7 @@ use App\Http\Controllers\API\LawyerCaseController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\LawyerAdditionalController;
 use App\Http\Controllers\API\ChatController;
+use App\Http\Controllers\API\MailController;
 
 
 Route::get('/user', function (Request $request) {
@@ -126,6 +127,7 @@ Route::apiResource('contacts', ContactController::class);
 */
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/mail/send', [MailController::class, 'send'])->middleware('throttle:20,1');
     
     /*
     |--------------------------------------------------------------------------
