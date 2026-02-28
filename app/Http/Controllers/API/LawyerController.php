@@ -185,7 +185,6 @@ class LawyerController extends Controller
                     'message' => 'Error creating lawyer/user: ' . $e->getMessage()
                 ], 500);
             }
-        });
     }
 
     /**
