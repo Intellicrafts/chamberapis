@@ -365,15 +365,15 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
           <div class="t-dot t-red"></div>
           <div class="t-dot t-yellow"></div>
           <div class="t-dot t-green"></div>
-          <div class="terminal-title-bar">bakil@{{ gethostname() }}:~/api — {{ strtoupper(app()->environment()) }}</div>
+          <div class="terminal-title-bar" id="termTitleBar">bakil@{{ gethostname() }}:~/api — <span id="termEnvBadge">{{ strtoupper(app()->environment()) }}</span></div>
           <button class="btn" style="margin-left:auto;font-size:11px;padding:4px 10px" onclick="clearTerm()">Clear</button>
         </div>
         <div class="terminal-body" id="termBody">
           <div class="t-line t-info">╔══════════════════════════════════════════════╗</div>
           <div class="t-line t-info">║    Mera Vakil API Control Terminal v1.0      ║</div>
           <div class="t-line t-info">╚══════════════════════════════════════════════╝</div>
-          <div class="t-line t-success">✓ Connected to {{ app()->environment() }} environment</div>
-          <div class="t-line t-success">✓ Laravel {{ app()->version() }} · PHP {{ PHP_VERSION }}</div>
+          <div class="t-line t-success" id="termEnvLine">✓ Connected to <strong>{{ app()->environment() }}</strong> environment</div>
+          <div class="t-line t-success" id="termVersionLine">✓ Laravel {{ app()->version() }} · PHP {{ PHP_VERSION }}</div>
           <div class="t-line" style="color:var(--text3)">Type a command below. All artisan commands supported.</div>
           <div class="t-line"> </div>
         </div>
@@ -387,7 +387,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
           @endforeach
         </div>
         <div class="terminal-input-row">
-          <span class="t-prompt-label">{{ app()->environment() }}@api $</span>
+          <span class="t-prompt-label" id="termPromptLabel">{{ app()->environment() }}@api $</span>
           <input class="t-input" id="termInput" placeholder="php artisan …" autocomplete="off"
             onkeydown="if(event.key==='Enter')runTermCmd();if(event.key==='ArrowUp')termHistory(-1);if(event.key==='ArrowDown')termHistory(1);">
           <button class="t-run-btn" onclick="runTermCmd()">▶ Run</button>
@@ -523,6 +523,12 @@ async function loadHealth() {
     document.getElementById('alertTitle').textContent = d.status === 'healthy' ? 'All Systems Operational' : d.status === 'warning' ? 'System Warning' : 'System Degraded';
     document.getElementById('alertSub').textContent = `Status: ${d.status} · Env: ${d.environment}`;
     document.getElementById('topStatus').textContent = d.status === 'healthy' ? 'All Systems OK' : d.status.toUpperCase();
+
+    // Sync Terminal Environment Info
+    if (document.getElementById('termEnvBadge')) document.getElementById('termEnvBadge').textContent = d.environment.toUpperCase();
+    if (document.getElementById('termEnvLine')) document.getElementById('termEnvLine').innerHTML = `✓ Connected to <strong>${d.environment}</strong> environment`;
+    if (document.getElementById('termVersionLine')) document.getElementById('termVersionLine').textContent = `✓ Laravel ${d.app_version} · PHP ${d.php_version}`;
+    if (document.getElementById('termPromptLabel')) document.getElementById('termPromptLabel').textContent = `${d.environment}@api $`;
 
     // Health grid
     const icons = { database:'🗄️', cache:'⚡', queue:'📬', storage:'💾', mail:'📧' };

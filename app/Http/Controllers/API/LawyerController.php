@@ -153,57 +153,73 @@ class LawyerController extends Controller
 
     /**
      * Update the specified lawyer.
+     * Supports PUT, PATCH (partial), and POST (form-data) methods.
      */
     public function update(Request $request, Lawyer $lawyer): JsonResponse
     {
         try {
+            // Use 'sometimes' so fields NOT present in the request are simply skipped —
+            // this prevents passing null into NOT NULL database columns.
             $validated = $request->validate([
-                'full_name' => 'required|string|max:255',
-                'email' => 'required|email|unique:lawyers,email,' . $lawyer->id,
-                'phone_number' => 'nullable|string|max:20',
-                'enrollment_no' => 'required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
-                'bar_association' => 'nullable|string|max:255',
-                'specialization' => 'nullable|string|max:255',
-                'years_of_experience' => 'nullable|integer|min:0',
-                'bio' => 'nullable|string',
-                'consultation_fee' => 'nullable|numeric|min:0',
-                'active' => 'boolean',
-                'is_verified' => 'boolean',
-                'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+                'full_name'           => 'sometimes|required|string|max:255',
+                'email'               => 'sometimes|required|email|unique:lawyers,email,' . $lawyer->id,
+                'phone_number'        => 'sometimes|nullable|string|max:20',
+                'enrollment_no'       => 'sometimes|required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
+                'bar_association'     => 'sometimes|nullable|string|max:255',
+                'specialization'      => 'sometimes|nullable|string|max:255',
+                'years_of_experience' => 'sometimes|nullable|integer|min:0',
+                'bio'                 => 'sometimes|nullable|string',
+                'consultation_fee'    => 'sometimes|nullable|numeric|min:0',
+                'active'              => 'sometimes|boolean',
+                'is_verified'         => 'sometimes|boolean',
+                'profile_picture'     => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
 
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
-                // Delete old picture
+                // Delete old picture if it exists
                 if ($lawyer->profile_picture_url) {
                     Storage::disk('public')->delete($lawyer->profile_picture_url);
                 }
-                
                 $validated['profile_picture_url'] = $request->file('profile_picture')
                     ->store('lawyers', 'public');
             }
 
+            // For NOT NULL columns that the client did not send, preserve the existing DB value.
+            // This guards against clients that omit years_of_experience on a partial update.
+            $notNullDefaults = [
+                'years_of_experience' => $lawyer->years_of_experience,
+            ];
+            foreach ($notNullDefaults as $col => $existingValue) {
+                if (array_key_exists($col, $validated) && is_null($validated[$col])) {
+                    $validated[$col] = $existingValue;
+                }
+            }
+
+            // Only write fields that were actually sent
             $lawyer->update($validated);
+            $lawyer->refresh();
 
             return response()->json([
                 'success' => true,
-                'data' => $lawyer,
-                'message' => 'Lawyer updated successfully'
+                'data'    => $lawyer,
+                'message' => 'Lawyer updated successfully',
             ]);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors'  => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating lawyer: ' . $e->getMessage()
+                'message' => 'Error updating lawyer: ' . $e->getMessage(),
             ], 500);
         }
     }
+
 
     /**
      * Remove the specified lawyer.
