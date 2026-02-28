@@ -220,70 +220,99 @@ class LawyerController extends Controller
     /**
      * Update the specified lawyer.
      * Supports PUT, PATCH (partial), and POST (form-data) methods.
+     * Automatically synchronizes core changes with the linked User record.
      */
     public function update(Request $request, Lawyer $lawyer): JsonResponse
     {
-        try {
-            // Use 'sometimes' so fields NOT present in the request are simply skipped —
-            // this prevents passing null into NOT NULL database columns.
-            $validated = $request->validate([
-                'full_name'           => 'sometimes|required|string|max:255',
-                'email'               => 'sometimes|required|email|unique:lawyers,email,' . $lawyer->id,
-                'phone_number'        => 'sometimes|nullable|string|max:20',
-                'enrollment_no'       => 'sometimes|required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
-                'bar_association'     => 'sometimes|nullable|string|max:255',
-                'specialization'      => 'sometimes|nullable|string|max:255',
-                'years_of_experience' => 'sometimes|nullable|integer|min:0',
-                'bio'                 => 'sometimes|nullable|string',
-                'consultation_fee'    => 'sometimes|nullable|numeric|min:0',
-                'active'              => 'sometimes|boolean',
-                'is_verified'         => 'sometimes|boolean',
-                'profile_picture'     => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            ]);
+        return DB::transaction(function () use ($request, $lawyer) {
+            try {
+                $validated = $request->validate([
+                    'full_name'           => 'sometimes|required|string|max:255',
+                    'email'               => 'sometimes|required|email|unique:lawyers,email,' . $lawyer->id,
+                    'phone_number'        => 'sometimes|nullable|string|max:20',
+                    'enrollment_no'       => 'sometimes|required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
+                    'bar_association'     => 'sometimes|nullable|string|max:255',
+                    'specialization'      => 'sometimes|nullable|string|max:255',
+                    'years_of_experience' => 'sometimes|nullable|integer|min:0',
+                    'bio'                 => 'sometimes|nullable|string',
+                    'consultation_fee'    => 'sometimes|nullable|numeric|min:0',
+                    'active'              => 'sometimes|boolean',
+                    'is_verified'         => 'sometimes|boolean',
+                    'profile_picture'     => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                ]);
 
-            // Handle profile picture upload
-            if ($request->hasFile('profile_picture')) {
-                // Delete old picture if it exists
-                if ($lawyer->profile_picture_url) {
-                    Storage::disk('public')->delete($lawyer->profile_picture_url);
+                // 1. SYNC WITH USER TABLE FIRST
+                // We fetch the linked user via our defined relationship
+                $user = $lawyer->user; 
+                
+                if ($user) {
+                    $userUpdateData = [];
+                    
+                    // Smartly identify which core fields were sent and need syncing
+                    if ($request->has('full_name'))    $userUpdateData['name']  = $validated['full_name'];
+                    if ($request->has('phone_number')) $userUpdateData['phone'] = $validated['phone_number'];
+                    
+                    if ($request->has('email')) {
+                        // Crucial: check email uniqueness in users table before updating
+                        $existingUser = \App\Models\User::where('email', $validated['email'])
+                            ->where('id', '!=', $user->id)
+                            ->first();
+                            
+                        if ($existingUser) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'The provided email is already in use by another account.'
+                            ], 422);
+                        }
+                        $userUpdateData['email'] = $validated['email'];
+                    }
+
+                    if (!empty($userUpdateData)) {
+                        $user->update($userUpdateData);
+                        \Log::info("User ID [{$user->id}] synchronized with Lawyer ID [{$lawyer->id}] update.");
+                    }
                 }
-                $validated['profile_picture_url'] = $request->file('profile_picture')
-                    ->store('lawyers', 'public');
-            }
 
-            // For NOT NULL columns that the client did not send, preserve the existing DB value.
-            // This guards against clients that omit years_of_experience on a partial update.
-            $notNullDefaults = [
-                'years_of_experience' => $lawyer->years_of_experience,
-            ];
-            foreach ($notNullDefaults as $col => $existingValue) {
-                if (array_key_exists($col, $validated) && is_null($validated[$col])) {
-                    $validated[$col] = $existingValue;
+                // 2. HANDLE LAWYER PROFILE SPECIFICS
+                if ($request->hasFile('profile_picture')) {
+                    if ($lawyer->profile_picture_url) {
+                        Storage::disk('public')->delete($lawyer->profile_picture_url);
+                    }
+                    $validated['profile_picture_url'] = $request->file('profile_picture')
+                        ->store('lawyers', 'public');
                 }
+
+                // Preserve existing values for NOT NULL columns if client sent null
+                $notNullColumns = ['years_of_experience'];
+                foreach ($notNullColumns as $col) {
+                    if (array_key_exists($col, $validated) && is_null($validated[$col])) {
+                        unset($validated[$col]); // Don't write null over numerical/non-null cols
+                    }
+                }
+
+                // 3. EXECUTE LAWYER UPDATE
+                $lawyer->update($validated);
+                $lawyer->refresh();
+
+                return response()->json([
+                    'success' => true,
+                    'data'    => $lawyer->load('user'),
+                    'message' => 'Lawyer profile and linked user account updated successfully.',
+                ]);
+
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors'  => $e->errors(),
+                ], 422);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error updating lawyer: ' . $e->getMessage(),
+                ], 500);
             }
-
-            // Only write fields that were actually sent
-            $lawyer->update($validated);
-            $lawyer->refresh();
-
-            return response()->json([
-                'success' => true,
-                'data'    => $lawyer,
-                'message' => 'Lawyer updated successfully',
-            ]);
-
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors'  => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error updating lawyer: ' . $e->getMessage(),
-            ], 500);
-        }
+        });
     }
 
 
