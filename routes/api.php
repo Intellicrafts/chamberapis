@@ -290,7 +290,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/{lawyer}', [LawyerController::class, 'show'])->name('show');
         Route::put('/{lawyer}', [LawyerController::class, 'update'])->name('update');
-        Route::post('/{lawyer}', [LawyerController::class, 'update'])->name('update-post'); // form-data support
+        Route::patch('/{lawyer}', [LawyerController::class, 'update'])->name('update-patch'); // PATCH support
+        Route::post('/{lawyer}', [LawyerController::class, 'update'])->name('update-post'); // form-data
         Route::delete('/{lawyer}', [LawyerController::class, 'destroy'])->name('destroy');
 
         // Sub-resource routes under /{lawyer}
