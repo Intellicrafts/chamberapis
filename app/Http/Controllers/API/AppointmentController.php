@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Events\AppointmentBooked;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Services\Mail\AppMailService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -83,8 +85,20 @@ class AppointmentController extends Controller
                 $validated['status'] = Appointment::STATUS_SCHEDULED;
             }
 
-            $appointment = Appointment::create($validated);
-            $appointment->load(['user:id,name,email', 'lawyer:id,user_id,full_name,email', 'lawyer.user:id,email']);
+            $appointment = DB::transaction(function () use ($validated) {
+                $appointment = Appointment::create($validated);
+                $appointment->load(['user:id,name,email,phone', 'lawyer:id,user_id,full_name,email,phone_number', 'lawyer.user:id,email,phone']);
+
+                return $appointment;
+            });
+
+            try {
+                if ($appointment->user && $appointment->lawyer) {
+                    event(new AppointmentBooked($appointment, $appointment->user, $appointment->lawyer));
+                }
+            } catch (\Throwable $eventException) {
+                report($eventException);
+            }
 
             try {
                 $lawyerOfficialEmail = $appointment->lawyer?->email ?: $appointment->lawyer?->user?->email;

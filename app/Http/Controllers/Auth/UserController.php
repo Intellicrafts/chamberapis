@@ -382,13 +382,18 @@ public function updateProfile(Request $request)
                 'lawyer_data.bio' => 'nullable|string',
                 'lawyer_data.specialization' => 'nullable|string',
                 'lawyer_data.bar_association' => 'nullable|string',
-                'lawyer_data.consultation_fee' => 'nullable|numeric',
+                'lawyer_data.consultation_fee' => 'nullable',
             ]);
             
             if (!empty($lawyerData['lawyer_data'])) {
                 $lawyer = \App\Models\Lawyer::where('email', $user->email)->first();
                 if ($lawyer) {
-                    $lawyer->update($lawyerData['lawyer_data']);
+                    $payload = $lawyerData['lawyer_data'];
+                    // Normalize consultation_fee to array
+                    if (array_key_exists('consultation_fee', $payload)) {
+                        $payload['consultation_fee'] = $this->normalizeConsultationFee($payload['consultation_fee']);
+                    }
+                    $lawyer->update($payload);
                 }
             }
         }
@@ -424,6 +429,27 @@ public function updateProfile(Request $request)
             'data' => $userData,
             'message' => 'Profile updated successfully'
         ]);
+    }
+
+    /**
+     * Normalize consultation_fee input to array of service objects.
+     */
+    private function normalizeConsultationFee($input): array
+    {
+        if (is_array($input)) return $input;
+        if (is_string($input)) {
+            $decoded = json_decode($input, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) return $decoded;
+        }
+        $numeric = is_numeric($input) ? floatval($input) : 0;
+        return [[
+            'service_code' => 'appointment',
+            'service_name' => 'Appointment Consultation',
+            'billing_model' => 'per_minute',
+            'rate' => $numeric,
+            'currency' => 'INR',
+            'is_active' => true,
+        ]];
     }
 
     public function fetchUser(Request $request){

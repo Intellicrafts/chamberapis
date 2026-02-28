@@ -78,21 +78,20 @@ class LawyerController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        return DB::transaction(function () use ($request) {
-            try {
-                $validated = $request->validate([
-                    'full_name'           => 'required|string|max:255',
-                    'email'               => 'required|email|unique:lawyers,email',
-                    'phone_number'        => 'nullable|string|max:20',
-                    'password'            => 'required|string|min:8',
-                    'enrollment_no'       => 'required|string|unique:lawyers,enrollment_no',
-                    'bar_association'     => 'nullable|string|max:255',
-                    'specialization'      => 'nullable|string|max:255',
-                    'years_of_experience' => 'nullable|integer|min:0',
-                    'bio'                 => 'nullable|string',
-                    'consultation_fee'    => 'nullable|numeric|min:0',
-                    'profile_picture'     => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-                ]);
+        try {
+            $validated = $request->validate([
+                'full_name' => 'required|string|max:255',
+                'email' => 'required|email|unique:lawyers,email',
+                'phone_number' => 'nullable|string|max:20',
+                'password' => 'required|string|min:8',
+                'enrollment_no' => 'required|string|unique:lawyers,enrollment_no',
+                'bar_association' => 'nullable|string|max:255',
+                'specialization' => 'nullable|string|max:255',
+                'years_of_experience' => 'nullable|integer|min:0',
+                'bio' => 'nullable|string',
+                'consultation_fee' => 'nullable',
+                'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
 
                 // STEP 1: COLLECT USER INFORMATION
                 // We must ensure an entry exists in the 'users' table before proceeding.
@@ -186,7 +185,6 @@ class LawyerController extends Controller
                     'message' => 'Error creating lawyer/user: ' . $e->getMessage()
                 ], 500);
             }
-        });
     }
 
     /**
@@ -228,95 +226,95 @@ class LawyerController extends Controller
      */
     public function update(Request $request, Lawyer $lawyer): JsonResponse
     {
-        return DB::transaction(function () use ($request, $lawyer) {
-            try {
-                $validated = $request->validate([
-                    'full_name'           => 'sometimes|required|string|max:255',
-                    'email'               => 'sometimes|required|email|unique:lawyers,email,' . $lawyer->id,
-                    'phone_number'        => 'sometimes|nullable|string|max:20',
-                    'enrollment_no'       => 'sometimes|required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
-                    'bar_association'     => 'sometimes|nullable|string|max:255',
-                    'specialization'      => 'sometimes|nullable|string|max:255',
-                    'years_of_experience' => 'sometimes|nullable|integer|min:0',
-                    'bio'                 => 'sometimes|nullable|string',
-                    'consultation_fee'    => 'sometimes|nullable|numeric|min:0',
-                    'active'              => 'sometimes|boolean',
-                    'is_verified'         => 'sometimes|boolean',
-                    'profile_picture'     => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                ]);
+        try {
+            $validated = $request->validate([
+                'full_name' => 'required|string|max:255',
+                'email' => 'required|email|unique:lawyers,email,' . $lawyer->id,
+                'phone_number' => 'nullable|string|max:20',
+                'enrollment_no' => 'required|string|unique:lawyers,enrollment_no,' . $lawyer->id,
+                'bar_association' => 'nullable|string|max:255',
+                'specialization' => 'nullable|string|max:255',
+                'years_of_experience' => 'nullable|integer|min:0',
+                'bio' => 'nullable|string',
+                'consultation_fee' => 'nullable',
+                'active' => 'boolean',
+                'is_verified' => 'boolean',
+                'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
 
-                // 1. SYNC WITH USER TABLE FIRST
-                // We fetch the linked user via our defined relationship
-                $user = $lawyer->user; 
-                
-                if ($user) {
-                    $userUpdateData = [];
-                    
-                    // Smartly identify which core fields were sent and need syncing
-                    if ($request->has('full_name'))    $userUpdateData['name']  = $validated['full_name'];
-                    if ($request->has('phone_number')) $userUpdateData['phone'] = $validated['phone_number'];
-                    
-                    if ($request->has('email')) {
-                        // Crucial: check email uniqueness in users table before updating
-                        $existingUser = \App\Models\User::where('email', $validated['email'])
-                            ->where('id', '!=', $user->id)
-                            ->first();
-                            
-                        if ($existingUser) {
-                            return response()->json([
-                                'success' => false,
-                                'message' => 'The provided email is already in use by another account.'
-                            ], 422);
-                        }
-                        $userUpdateData['email'] = $validated['email'];
-                    }
-
-                    if (!empty($userUpdateData)) {
-                        $user->update($userUpdateData);
-                        \Log::info("User ID [{$user->id}] synchronized with Lawyer ID [{$lawyer->id}] update.");
-                    }
-                }
-
-                // 2. HANDLE LAWYER PROFILE SPECIFICS
-                if ($request->hasFile('profile_picture')) {
-                    if ($lawyer->profile_picture_url) {
-                        Storage::disk('public')->delete($lawyer->profile_picture_url);
-                    }
-                    $validated['profile_picture_url'] = $request->file('profile_picture')
-                        ->store('lawyers', 'public');
-                }
-
-                // Preserve existing values for NOT NULL columns if client sent null
-                $notNullColumns = ['years_of_experience'];
-                foreach ($notNullColumns as $col) {
-                    if (array_key_exists($col, $validated) && is_null($validated[$col])) {
-                        unset($validated[$col]); // Don't write null over numerical/non-null cols
-                    }
-                }
-
-                // 3. EXECUTE LAWYER UPDATE
-                $lawyer->update($validated);
-                $lawyer->refresh();
-
-                return response()->json([
-                    'success' => true,
-                    'data'    => $lawyer->load('user'),
-                    'message' => 'Lawyer profile and linked user account updated successfully.',
-                ]);
-
-            } catch (ValidationException $e) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors'  => $e->errors(),
-                ], 422);
-            } catch (\Exception $e) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Error updating lawyer: ' . $e->getMessage(),
-                ], 500);
+            // Normalize consultation fee to array if provided
+            if ($request->has('consultation_fee')) {
+                $validated['consultation_fee'] = $this->normalizeConsultationFee($validated['consultation_fee']);
             }
-        });
+
+            // 1. SYNC WITH USER TABLE FIRST
+            $user = $lawyer->user; 
+            
+            if ($user) {
+                $userUpdateData = [];
+                
+                if ($request->has('full_name'))    $userUpdateData['name']  = $validated['full_name'];
+                if ($request->has('phone_number')) $userUpdateData['phone'] = $validated['phone_number'];
+                
+                if ($request->has('email')) {
+                    $existingUser = \App\Models\User::where('email', $validated['email'])
+                        ->where('id', '!=', $user->id)
+                        ->first();
+                        
+                    if ($existingUser) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'The provided email is already in use by another account.'
+                        ], 422);
+                    }
+                    $userUpdateData['email'] = $validated['email'];
+                }
+
+                if (!empty($userUpdateData)) {
+                    $user->update($userUpdateData);
+                    \Log::info("User ID [{$user->id}] synchronized with Lawyer ID [{$lawyer->id}] update.");
+                }
+            }
+
+            // 2. HANDLE LAWYER PROFILE SPECIFICS
+            if ($request->hasFile('profile_picture')) {
+                if ($lawyer->profile_picture_url) {
+                    Storage::disk('public')->delete($lawyer->profile_picture_url);
+                }
+                $validated['profile_picture_url'] = $request->file('profile_picture')
+                    ->store('lawyers', 'public');
+            }
+
+            // Preserve existing values for NOT NULL columns if client sent null
+            $notNullColumns = ['years_of_experience'];
+            foreach ($notNullColumns as $col) {
+                if (array_key_exists($col, $validated) && is_null($validated[$col])) {
+                    unset($validated[$col]);
+                }
+            }
+
+            // 3. EXECUTE LAWYER UPDATE
+            $lawyer->update($validated);
+            $lawyer->refresh();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $lawyer->load('user'),
+                'message' => 'Lawyer profile and linked user account updated successfully.',
+            ]);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating lawyer: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
 
@@ -509,7 +507,26 @@ class LawyerController extends Controller
         }
     }
 
-    
+    /**
+     * Normalize consultation_fee input to array of service objects.
+     */
+    private function normalizeConsultationFee($input): array
+    {
+        if (is_array($input)) return $input;
+        if (is_string($input)) {
+            $decoded = json_decode($input, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) return $decoded;
+        }
+        $numeric = is_numeric($input) ? floatval($input) : 0;
+        return [[
+            'service_code' => 'appointment',
+            'service_name' => 'Appointment Consultation',
+            'billing_model' => 'per_minute',
+            'rate' => $numeric,
+            'currency' => 'INR',
+            'is_active' => true,
+        ]];
+    }
 
 
 }
