@@ -87,7 +87,9 @@ class AppointmentController extends Controller
 
             $appointment = DB::transaction(function () use ($validated) {
                 $appointment = Appointment::create($validated);
-                $appointment->load(['user:id,name,email,phone', 'lawyer:id,user_id,full_name,email,phone_number', 'lawyer.user:id,email,phone']);
+                // Avoid strict column projections here so booking does not fail on
+                // environments where optional profile columns are not present yet.
+                $appointment->load(['user', 'lawyer', 'lawyer.user']);
 
                 return $appointment;
             });

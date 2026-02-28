@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Lawyer;
 use App\Models\LawyerAdditional;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -82,7 +83,7 @@ class LawyerAdditionalController extends Controller
                 ], 422);
             }
 
-            // Normalize consultation_fee to array of service objects
+            // Normalize consultation_fee to decimal value
             $consultationFeeRaw = $request->consultation_fee;
             $consultationFee = $this->normalizeConsultationFee($consultationFeeRaw);
 
@@ -146,34 +147,36 @@ class LawyerAdditionalController extends Controller
     }
 
     /**
-     * Normalize consultation_fee input (numeric, JSON string, or array) into
-     * an array of service objects.
+     * Normalize consultation_fee input (number, JSON, or array payload) to decimal value.
      */
-    private function normalizeConsultationFee($input): array
+    private function normalizeConsultationFee($input): float
     {
-        // Already array
-        if (is_array($input)) {
-            return $input;
+        if ($input === null || $input === '') {
+            return 0.0;
         }
 
-        // JSON string
+        if (is_numeric($input)) {
+            return (float) $input;
+        }
+
         if (is_string($input)) {
             $decoded = json_decode($input, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                return $decoded;
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $this->normalizeConsultationFee($decoded);
             }
         }
 
-        // Fallback numeric
-        $numeric = is_numeric($input) ? floatval($input) : 0;
-        return [[
-            'service_code' => 'appointment',
-            'service_name' => 'Appointment Consultation',
-            'billing_model' => 'per_minute',
-            'rate' => $numeric,
-            'currency' => 'INR',
-            'is_active' => true,
-        ]];
+        if (is_array($input)) {
+            if (array_key_exists('rate', $input) && is_numeric($input['rate'])) {
+                return (float) $input['rate'];
+            }
+
+            if (isset($input[0]) && is_array($input[0]) && array_key_exists('rate', $input[0]) && is_numeric($input[0]['rate'])) {
+                return (float) $input[0]['rate'];
+            }
+        }
+
+        return 0.0;
     }
 
     /**
@@ -404,7 +407,7 @@ class LawyerAdditionalController extends Controller
             ], 500);
         }
     }
-}
+
     /**
      * Handle Satyapan verification success.
      */
@@ -458,7 +461,7 @@ class LawyerAdditionalController extends Controller
                 $lawyer->update([
                     'is_verified' => true,
                     'active' => true, // Automatically activate upon verification
-                    'consultation_fee' => $consultationFee,
+                    'consultation_fee' => (float) ($lawyerDetails->consultation_fee ?? 0),
                 ]);
             }
 

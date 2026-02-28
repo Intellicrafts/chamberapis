@@ -74,7 +74,7 @@ class LawyerAdditional extends Model
         'consultation_modes' => 'array',
         'available_days' => 'array',
         'experience_years' => 'integer',
-        'consultation_fee' => 'array',
+        'consultation_fee' => 'decimal:2',
         'min_consultation_fee' => 'decimal:2',
         'max_consultation_fee' => 'decimal:2',
         'total_cases_handled' => 'integer',
