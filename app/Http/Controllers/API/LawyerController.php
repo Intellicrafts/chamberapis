@@ -72,84 +72,102 @@ class LawyerController extends Controller
      * Store a newly created lawyer.
      * Links to an existing User if email matches, or creates a new User if not.
      */
+    /**
+     * Store a newly created lawyer.
+     * Ensures both User and Lawyer records are synchronized.
+     */
     public function store(Request $request): JsonResponse
     {
         return DB::transaction(function () use ($request) {
             try {
                 $validated = $request->validate([
-                    'full_name' => 'required|string|max:255',
-                    'email' => 'required|email|unique:lawyers,email',
-                    'phone_number' => 'nullable|string|max:20',
-                    'password' => 'required|string|min:8',
-                    'enrollment_no' => 'required|string|unique:lawyers,enrollment_no',
-                    'bar_association' => 'nullable|string|max:255',
-                    'specialization' => 'nullable|string|max:255',
+                    'full_name'           => 'required|string|max:255',
+                    'email'               => 'required|email|unique:lawyers,email',
+                    'phone_number'        => 'nullable|string|max:20',
+                    'password'            => 'required|string|min:8',
+                    'enrollment_no'       => 'required|string|unique:lawyers,enrollment_no',
+                    'bar_association'     => 'nullable|string|max:255',
+                    'specialization'      => 'nullable|string|max:255',
                     'years_of_experience' => 'nullable|integer|min:0',
-                    'bio' => 'nullable|string',
-                    'consultation_fee' => 'nullable|numeric|min:0',
-                    'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+                    'bio'                 => 'nullable|string',
+                    'consultation_fee'    => 'nullable|numeric|min:0',
+                    'profile_picture'     => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
                 ]);
 
-                // 1. Check if user exists in the users table by email
+                // STEP 1: COLLECT USER INFORMATION
+                // We must ensure an entry exists in the 'users' table before proceeding.
                 $user = \App\Models\User::where('email', $validated['email'])->first();
 
-                // 2. If user doesn't exist, create a new user profile
                 if (!$user) {
-                    // Check if email is unique in users table too before creating
+                    // Scenario A: Completely new user. We create the user account first.
+                    // Pre-check for email uniqueness in users table to prevent duplicate errors
                     if (\App\Models\User::where('email', $validated['email'])->exists()) {
                         return response()->json([
                             'success' => false,
-                            'message' => 'A user with this email already exists but is not registered as a lawyer.'
+                            'message' => 'Email already exists in our system. Please try logging in.'
                         ], 422);
                     }
 
                     $user = \App\Models\User::create([
-                        'name' => $validated['full_name'],
-                        'email' => $validated['email'],
-                        'password' => Hash::make($request->password),
-                        'phone' => $validated['phone_number'],
-                        'user_type' => 2, // 2 = Lawyer
-                        'role' => null,   // Setting to null to avoid Enum conflicts if 'lawyer' isn't in it
-                        'active' => true,
+                        'name'        => $validated['full_name'],
+                        'email'       => $validated['email'],
+                        'password'    => Hash::make($request->password),
+                        'phone'       => $validated['phone_number'],
+                        'user_type'   => 2, // 2 = Lawyer
+                        'role'        => null, // Nullable to bypass enum restrictions if 'lawyer' is missing
+                        'active'      => true,
                         'is_verified' => false,
                     ]);
+                    
+                    \Log::info("New user account created successfully for lawyer: {$user->email}");
                 } else {
-                    // If user exists, ensure their type is set to 2 (Lawyer)
+                    // Scenario B: User exists (e.g. registered as client). We map to them.
+                    // We update their user_type to 2 (Lawyer) to ensure they have correct access.
                     if ($user->user_type != 2) {
                         $user->update(['user_type' => 2]);
+                        \Log::info("Existing user [ID: {$user->id}] updated to Lawyer type.");
                     }
                 }
 
-                // 3. Prepare lawyer data
-                $lawyerData = $validated;
-                $lawyerData['user_id'] = $user->id; // Explicit mapping
-                $lawyerData['status'] = '0';        // Default pending status
+                // STEP 2: OBTAIN USER_ID AND PREPARE LAWYER DATA
+                $userId = $user->id; // This is the mandatory mapping key
                 
-                // Handle profile picture upload
+                $lawyerData = $validated;
+                $lawyerData['user_id'] = $userId; // Map the lawyer to the user
+                $lawyerData['status']  = '0';     // Default status (Pending)
+                
+                // Handle Profile Picture
                 if ($request->hasFile('profile_picture')) {
                     $lawyerData['profile_picture_url'] = $request->file('profile_picture')
                         ->store('lawyers', 'public');
                 }
 
-                // Hash password for lawyer table (database redundancy or legacy support)
+                // Store hash for lawyer table specifically (if required by schema)
                 $lawyerData['password_hash'] = Hash::make($request->password);
                 unset($lawyerData['password']);
 
-                // 4. Create the Lawyer record
+                // STEP 3: REGISTER LAWYER ENTRY
+                // The entry is now created with a guaranteed user_id mapping.
                 $lawyer = Lawyer::create($lawyerData);
+
+                \Log::info("Lawyer profile [ID: {$lawyer->id}] registered and mapped to User ID: {$userId}");
 
                 return response()->json([
                     'success' => true,
                     'data' => [
-                        'lawyer' => $lawyer,
-                        'user' => [
-                            'id' => $user->id,
-                            'name' => $user->name,
-                            'email' => $user->email,
+                        'lawyer_profile' => $lawyer,
+                        'user_account'   => [
+                            'id'        => $user->id,
+                            'name'      => $user->name,
+                            'email'     => $user->email,
                             'user_type' => $user->user_type
+                        ],
+                        'mapping' => [
+                            'user_id' => $userId,
+                            'status'  => 'mapped'
                         ]
                     ],
-                    'message' => 'Lawyer and matching User account created successfully'
+                    'message' => 'Lawyer registered and synchronized with user account successfully.'
                 ], 201);
 
             } catch (ValidationException $e) {
