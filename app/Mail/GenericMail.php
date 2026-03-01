@@ -13,10 +13,10 @@ class GenericMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        protected string $subjectLine,
-        protected string $viewName,
-        protected array $viewData = [],
-        protected ?array $replyToAddress = null
+        public string $subjectLine,
+        public string $viewName,
+        public $viewData = [],
+        public ?array $replyToAddress = null
     ) {
     }
 
