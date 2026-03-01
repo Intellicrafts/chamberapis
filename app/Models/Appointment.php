@@ -18,6 +18,7 @@ class Appointment extends Model
         'duration_minutes',
         'status',
         'meeting_link',
+        'notes',
         'consultation_duration_minutes',
         'consultation_enabled',
         'consultation_join_time',
