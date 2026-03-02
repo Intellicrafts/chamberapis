@@ -88,7 +88,7 @@ class WhatsAppService
         $body .= "⏰ *Time:* {$time}\n\n";
         $body .= "Please be available 5 minutes before the session starts. Thank you for choosing MeraVakil!";
 
-        SendWhatsAppMessage::dispatch($phone, $body, 'appointment_confirmation_client', (int) $appointment->id);
+        SendWhatsAppMessage::dispatchSync($phone, $body, 'appointment_confirmation_client', (int) $appointment->id);
     }
 
     /**
@@ -112,7 +112,7 @@ class WhatsAppService
         $body .= "⏰ *Time:* {$time}\n\n";
         $body .= "To manage your schedule, please log into your MeraVakil Dashboard.";
 
-        SendWhatsAppMessage::dispatch($phone, $body, 'appointment_notification_lawyer', (int) $appointment->id);
+        SendWhatsAppMessage::dispatchSync($phone, $body, 'appointment_notification_lawyer', (int) $appointment->id);
     }
 
     /**
@@ -127,7 +127,7 @@ class WhatsAppService
         if (!empty($clientPhone)) {
             $lawyerName = $appointment->lawyer?->full_name ?? 'your Lawyer';
             $body = "{$this->brandName}\n\n⚠️ *URGENT REMINDER*\n\nHello *{$appointment->user->name}*,\nYour consultation with *{$lawyerName}* is starting in *5 minutes* ({$time}).\n\nPlease log in to the App and join your chamber now!";
-            SendWhatsAppMessage::dispatch($clientPhone, $body, 'appointment_reminder_client', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'appointment_reminder_client', (int) $appointment->id);
         }
 
         // Remind lawyer
@@ -135,7 +135,7 @@ class WhatsAppService
         if (!empty($lawyerPhone)) {
             $clientName = $appointment->user?->name ?? 'Client';
             $body = "{$this->brandName}\n\n⚠️ *URGENT REMINDER*\n\nHello *{$appointment->lawyer->full_name}*,\nYour session with *{$clientName}* starts in *5 minutes* ({$time}).\n\nPlease log in to join your consultation chamber now!";
-            SendWhatsAppMessage::dispatch($lawyerPhone, $body, 'appointment_reminder_lawyer', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'appointment_reminder_lawyer', (int) $appointment->id);
         }
     }
 
@@ -150,7 +150,7 @@ class WhatsAppService
             if (!empty($lawyerPhone)) {
                 $clientName = $appointment->user?->name ?? 'Your client';
                 $body = "{$this->brandName}\n\n🚨 *Client Waiting*\n\nHello *{$appointment->lawyer->full_name}*,\n*{$clientName}* has just joined the consultation chamber and is officially waiting for you.\n\nPlease join the session immediately.";
-                SendWhatsAppMessage::dispatch($lawyerPhone, $body, 'participant_joined_lawyer_alert', (int) $appointment->id);
+                SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'participant_joined_lawyer_alert', (int) $appointment->id);
             }
         } elseif ($joinedUserType === 'lawyer') {
             // Lawyer joined, alert Client
@@ -158,7 +158,7 @@ class WhatsAppService
             if (!empty($clientPhone)) {
                 $lawyerName = $appointment->lawyer?->full_name ?? 'Your lawyer';
                 $body = "{$this->brandName}\n\n🚨 *Lawyer Waiting*\n\nHello *{$appointment->user->name}*,\n*{$lawyerName}* has just joined the consultation chamber and is officially waiting for you to resolve your legal queries.\n\nPlease join the session immediately.";
-                SendWhatsAppMessage::dispatch($clientPhone, $body, 'participant_joined_client_alert', (int) $appointment->id);
+                SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'participant_joined_client_alert', (int) $appointment->id);
             }
         }
     }
@@ -172,14 +172,14 @@ class WhatsAppService
         $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
         if (!empty($clientPhone)) {
             $body = "{$this->brandName}\n\n🤝 *Session Completed*\n\nHello *{$appointment->user->name}*,\nYour legal consultation session has officially ended.\n\nThank you for trusting *MeraVakil*. We hope your queries were resolved successfully!";
-            SendWhatsAppMessage::dispatch($clientPhone, $body, 'session_ended_client', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'session_ended_client', (int) $appointment->id);
         }
 
         // To Lawyer
         $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
         if (!empty($lawyerPhone)) {
             $body = "{$this->brandName}\n\n🤝 *Session Completed*\n\nHello *{$appointment->lawyer->full_name}*,\nThe consultation session with your client has safely ended.\n\nGreat job! You can review reports in your MeraVakil Dashboard.";
-            SendWhatsAppMessage::dispatch($lawyerPhone, $body, 'session_ended_lawyer', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'session_ended_lawyer', (int) $appointment->id);
         }
     }
 
@@ -188,13 +188,13 @@ class WhatsAppService
         $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
         if (!empty($clientPhone)) {
             $body = "{$this->brandName}\n\n❌ *Appointment Cancelled*\n\nYour consultation scheduled for *" . ($appointment->appointment_time?->format('d M, h:i A') ?? '') . "* has been successfully cancelled.";
-            SendWhatsAppMessage::dispatch($clientPhone, $body, 'appointment_cancelled_client', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'appointment_cancelled_client', (int) $appointment->id);
         }
 
         $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
         if (!empty($lawyerPhone)) {
             $body = "{$this->brandName}\n\n❌ *Appointment Cancelled*\n\nYour session with " . ($appointment->user?->name ?? 'Client') . " on *" . ($appointment->appointment_time?->format('d M, h:i A') ?? '') . "* has been effectively cancelled.";
-            SendWhatsAppMessage::dispatch($lawyerPhone, $body, 'appointment_cancelled_lawyer', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'appointment_cancelled_lawyer', (int) $appointment->id);
         }
     }
 
@@ -204,13 +204,13 @@ class WhatsAppService
         $newTime = $appointment->appointment_time?->format('d M, h:i A') ?? '';
         if (!empty($clientPhone)) {
             $body = "{$this->brandName}\n\n🔄 *Appointment Rescheduled*\n\nYour consultation has been officially moved to *{$newTime}*. Please update your calendar.";
-            SendWhatsAppMessage::dispatch($clientPhone, $body, 'appointment_rescheduled_client', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'appointment_rescheduled_client', (int) $appointment->id);
         }
 
         $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
         if (!empty($lawyerPhone)) {
             $body = "{$this->brandName}\n\n🔄 *Appointment Rescheduled*\n\nYour session with " . ($appointment->user?->name ?? 'Client') . " has been officially moved to *{$newTime}*.";
-            SendWhatsAppMessage::dispatch($lawyerPhone, $body, 'appointment_rescheduled_lawyer', (int) $appointment->id);
+            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'appointment_rescheduled_lawyer', (int) $appointment->id);
         }
     }
 
