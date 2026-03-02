@@ -12,55 +12,36 @@ class SendWhatsAppMessage implements ShouldQueue
     use Queueable;
 
     public int $tries = 3;
+    public array $backoff = [15, 60, 180];
+    public int $timeout = 60;
 
-    public array $backoff = [30, 120, 300];
-
+    /**
+     * @param string $phone The recipient phone number
+     * @param string $bodyText The beautiful custom formatted message
+     * @param string $messageType Internal tracking type
+     * @param int|null $appointmentId
+     */
     public function __construct(
         public string $phone,
-        public array $variables,
+        public string $bodyText,
         public string $messageType,
-        public ?int $appointmentId = null
+        public ?int   $appointmentId = null
     ) {
         $this->onQueue('whatsapp');
     }
 
     public function handle(WhatsAppService $whatsAppService): void
     {
-        try {
-            $sid = $whatsAppService->sendMessage(
-                $this->phone,
-                $this->variables,
-                $this->messageType,
-                $this->appointmentId
-            );
-
-            Log::info('WhatsApp message queued and sent', [
-                'phone' => $this->phone,
-                'message_type' => $this->messageType,
-                'appointment_id' => $this->appointmentId,
-                'twilio_sid' => $sid,
-            ]);
-        } catch (\Throwable $exception) {
-            Log::warning('WhatsApp message job failed and will be retried', [
-                'phone' => $this->phone,
-                'message_type' => $this->messageType,
-                'appointment_id' => $this->appointmentId,
-                'attempt' => $this->attempts(),
-                'error' => $exception->getMessage(),
-            ]);
-
-            throw $exception;
+        if (!$whatsAppService->isValidPhone($this->phone)) {
+            return;
         }
-    }
 
-    public function failed(\Throwable $exception): void
-    {
-        Log::error('WhatsApp message job permanently failed', [
-            'phone' => $this->phone,
-            'message_type' => $this->messageType,
-            'appointment_id' => $this->appointmentId,
-            'error' => $exception->getMessage(),
-        ]);
+        $whatsAppService->sendMessage(
+            $this->phone,
+            $this->bodyText,
+            $this->messageType,
+            $this->appointmentId,
+            throwOnError: true
+        );
     }
 }
-

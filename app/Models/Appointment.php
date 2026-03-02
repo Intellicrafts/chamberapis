@@ -127,6 +127,42 @@ class Appointment extends Model
     const STATUS_IN_PROGRESS = 'in-progress';
 
     /**
+     * Scope: only scheduled appointments
+     */
+    public function scopeScheduled($query)
+    {
+        return $query->where('status', self::STATUS_SCHEDULED);
+    }
+
+    /**
+     * Scope: future appointments
+     */
+    public function scopeFuture($query)
+    {
+        return $query->where('appointment_time', '>', now());
+    }
+
+    /**
+     * Scope: past appointments
+     */
+    public function scopePast($query)
+    {
+        return $query->where('appointment_time', '<', now());
+    }
+
+    /**
+     * Scope: filter by date range
+     */
+    public function scopeDateRange($query, string $start, ?string $end = null)
+    {
+        $query->whereDate('appointment_time', '>=', $start);
+        if ($end) {
+            $query->whereDate('appointment_time', '<=', $end);
+        }
+        return $query;
+    }
+
+    /**
      * Scope for status
      */
     public function scopeByStatus($query, $status)
@@ -213,6 +249,39 @@ class Appointment extends Model
     public function markAsCancelled(): bool
     {
         return $this->update(['status' => self::STATUS_CANCELLED]);
+    }
+
+    /**
+     * Check if appointment is in scheduled status
+     */
+    public function isScheduled(): bool
+    {
+        return $this->status === self::STATUS_SCHEDULED;
+    }
+
+    /**
+     * Mark as no-show
+     */
+    public function markAsNoShow(): bool
+    {
+        return $this->update(['status' => self::STATUS_NO_SHOW]);
+    }
+
+    /**
+     * Can be marked as no-show
+     */
+    public function canBeMarkedAsNoShow(): bool
+    {
+        return in_array($this->status, [self::STATUS_SCHEDULED, self::STATUS_IN_PROGRESS]) &&
+               $this->appointment_time->isPast();
+    }
+
+    /**
+     * Generate a meeting link (simple unique URL)
+     */
+    public function generateMeetingLink(): string
+    {
+        return config('app.url') . '/chamber/' . $this->id . '/' . \Illuminate\Support\Str::random(16);
     }
 
     /**
