@@ -6,6 +6,7 @@ use App\Events\AppointmentBooked;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Services\Mail\AppMailService;
+use App\Services\WhatsAppService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,29 @@ use Carbon\Carbon;
 
 class AppointmentController extends Controller
 {
+    /**
+     * Build a standardised phone-warning block for API responses.
+     * Returns an array of warning strings (empty if none).
+     */
+    protected function buildPhoneWarnings(Appointment $appointment): array
+    {
+        $warnings = [];
+
+        $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
+        if (empty($clientPhone)) {
+            $warnings[] = 'Client phone number is missing — WhatsApp notification was not sent to client.';
+        }
+
+        $lawyerPhone = trim((string) (
+            $appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''
+        ));
+        if (empty($lawyerPhone)) {
+            $warnings[] = 'Lawyer phone number is missing — WhatsApp notification was not sent to lawyer.';
+        }
+
+        return $warnings;
+    }
+
     /**
      * Display a listing of appointments.
      */
@@ -42,42 +66,43 @@ class AppointmentController extends Controller
             }
 
             // Sorting
-            $sortBy = $request->get('sort_by', 'appointment_time');
+            $sortBy  = $request->get('sort_by', 'appointment_time');
             $sortDir = $request->get('sort_dir', 'asc');
             $query->orderBy($sortBy, $sortDir);
 
             // Pagination
-            $perPage = $request->get('per_page', 15);
+            $perPage      = $request->get('per_page', 15);
             $appointments = $query->paginate($perPage);
 
             return response()->json([
                 'success' => true,
-                'data' => $appointments,
-                'message' => 'Appointments retrieved successfully'
+                'data'    => $appointments,
+                'message' => 'Appointments retrieved successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving appointments: ' . $e->getMessage()
+                'message' => 'Error retrieving appointments: ' . $e->getMessage(),
             ], 500);
         }
     }
 
     /**
      * Store a newly created appointment.
+     * Sends WhatsApp confirmation to both client and lawyer.
      */
     public function store(Request $request, AppMailService $mailService): JsonResponse
     {
         try {
             $validated = $request->validate([
-                'user_id' => 'required|integer|exists:users,id',
-                'lawyer_id' => 'required|integer|exists:lawyers,id',
+                'user_id'          => 'required|integer|exists:users,id',
+                'lawyer_id'        => 'required|integer|exists:lawyers,id',
                 'appointment_time' => 'required|date|after:now',
                 'duration_minutes' => 'required|integer|min:15|max:240',
-                'status' => 'sometimes|string|in:' . implode(',', Appointment::getStatuses()),
-                'meeting_link' => 'nullable|string',
-                'notes' => 'nullable|string',
+                'status'           => 'sometimes|string|in:' . implode(',', Appointment::getStatuses()),
+                'meeting_link'     => 'nullable|string',
+                'notes'            => 'nullable|string',
             ]);
 
             // Default status to scheduled if not provided
@@ -87,13 +112,11 @@ class AppointmentController extends Controller
 
             $appointment = DB::transaction(function () use ($validated) {
                 $appointment = Appointment::create($validated);
-                // Avoid strict column projections here so booking does not fail on
-                // environments where optional profile columns are not present yet.
                 $appointment->load(['user', 'lawyer', 'lawyer.user']);
-
                 return $appointment;
             });
 
+            // Fire appointment booked event → triggers WhatsApp listener
             try {
                 if ($appointment->user && $appointment->lawyer) {
                     event(new AppointmentBooked($appointment, $appointment->user, $appointment->lawyer));
@@ -102,41 +125,50 @@ class AppointmentController extends Controller
                 report($eventException);
             }
 
+            // Send email notifications
             try {
                 $lawyerOfficialEmail = $appointment->lawyer?->email ?: $appointment->lawyer?->user?->email;
 
                 $mailService->sendAppointmentBookedNotifications([
-                    'id' => $appointment->id,
-                    'appointment_time' => optional($appointment->appointment_time)->toDateTimeString(),
-                    'duration_minutes' => $appointment->duration_minutes,
-                    'status' => $appointment->status,
-                    'meeting_link' => $appointment->meeting_link,
-                    'user_name' => $appointment->user?->name,
-                    'user_email' => $appointment->user?->email,
-                    'lawyer_name' => $appointment->lawyer?->full_name,
-                    'lawyer_email' => $appointment->lawyer?->email,
+                    'id'                  => $appointment->id,
+                    'appointment_time'    => optional($appointment->appointment_time)->toDateTimeString(),
+                    'duration_minutes'    => $appointment->duration_minutes,
+                    'status'              => $appointment->status,
+                    'meeting_link'        => $appointment->meeting_link,
+                    'user_name'           => $appointment->user?->name,
+                    'user_email'          => $appointment->user?->email,
+                    'lawyer_name'         => $appointment->lawyer?->full_name,
+                    'lawyer_email'        => $appointment->lawyer?->email,
                     'lawyer_official_email' => $lawyerOfficialEmail,
                 ]);
             } catch (\Throwable $mailException) {
                 report($mailException);
             }
 
-            return response()->json([
+            // Warn if phone numbers are missing
+            $warnings = $this->buildPhoneWarnings($appointment);
+
+            $responseData = [
                 'success' => true,
-                'data' => $appointment,
-                'message' => 'Appointment created successfully'
-            ], 201);
+                'data'    => $appointment,
+                'message' => 'Appointment created successfully',
+            ];
+            if (!empty($warnings)) {
+                $responseData['warnings'] = $warnings;
+            }
+
+            return response()->json($responseData, 201);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors'  => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating appointment: ' . $e->getMessage()
+                'message' => 'Error creating appointment: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -147,18 +179,18 @@ class AppointmentController extends Controller
     public function show(Appointment $appointment): JsonResponse
     {
         try {
-            $appointment->load(['user:id,name', 'lawyer:id,full_name']);
+            $appointment->load(['user:id,name,phone', 'lawyer:id,full_name,phone_number']);
 
             return response()->json([
                 'success' => true,
-                'data' => $appointment,
-                'message' => 'Appointment retrieved successfully'
+                'data'    => $appointment,
+                'message' => 'Appointment retrieved successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving appointment: ' . $e->getMessage()
+                'message' => 'Error retrieving appointment: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -172,7 +204,7 @@ class AppointmentController extends Controller
             $validated = $request->validate([
                 'appointment_time' => 'sometimes|date|after:now',
                 'duration_minutes' => 'sometimes|integer|min:15|max:240',
-                'status' => 'sometimes|string|in:' . implode(',', Appointment::getStatuses()),
+                'status'           => 'sometimes|string|in:' . implode(',', Appointment::getStatuses()),
             ]);
 
             $appointment->update($validated);
@@ -180,20 +212,20 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointment,
-                'message' => 'Appointment updated successfully'
+                'data'    => $appointment,
+                'message' => 'Appointment updated successfully',
             ]);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors'  => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating appointment: ' . $e->getMessage()
+                'message' => 'Error updating appointment: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -208,13 +240,13 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Appointment deleted successfully'
+                'message' => 'Appointment deleted successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting appointment: ' . $e->getMessage()
+                'message' => 'Error deleting appointment: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -228,7 +260,7 @@ class AppointmentController extends Controller
             if (!$appointment->canBeCompleted()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This appointment cannot be marked as completed'
+                    'message' => 'This appointment cannot be marked as completed',
                 ], 422);
             }
 
@@ -237,20 +269,21 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointment,
-                'message' => 'Appointment marked as completed'
+                'data'    => $appointment,
+                'message' => 'Appointment marked as completed',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error marking appointment as completed: ' . $e->getMessage()
+                'message' => 'Error marking appointment as completed: ' . $e->getMessage(),
             ], 500);
         }
     }
 
     /**
      * Cancel an appointment.
+     * Sends WhatsApp cancellation notification to both client and lawyer.
      */
     public function cancel(Appointment $appointment): JsonResponse
     {
@@ -258,23 +291,41 @@ class AppointmentController extends Controller
             if (!$appointment->canBeCancelled()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This appointment cannot be cancelled'
+                    'message' => 'This appointment cannot be cancelled',
                 ], 422);
             }
 
-            $appointment->markAsCancelled();
-            $appointment->load(['user:id,name', 'lawyer:id,full_name']);
+            // Load relations before cancelling so we have phone data
+            $appointment->load(['user', 'lawyer', 'lawyer.user']);
 
-            return response()->json([
+            $appointment->markAsCancelled();
+
+            // Send WhatsApp cancellation notifications (async, non-blocking)
+            try {
+                $whatsAppService = app(WhatsAppService::class);
+                $whatsAppService->sendCancellationNotification($appointment);
+            } catch (\Throwable $waException) {
+                report($waException);
+            }
+
+            // Build phone warnings for response
+            $warnings = $this->buildPhoneWarnings($appointment);
+
+            $responseData = [
                 'success' => true,
-                'data' => $appointment,
-                'message' => 'Appointment cancelled successfully'
-            ]);
+                'data'    => $appointment,
+                'message' => 'Appointment cancelled successfully',
+            ];
+            if (!empty($warnings)) {
+                $responseData['warnings'] = $warnings;
+            }
+
+            return response()->json($responseData);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error cancelling appointment: ' . $e->getMessage()
+                'message' => 'Error cancelling appointment: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -288,7 +339,7 @@ class AppointmentController extends Controller
             if (!$appointment->canBeMarkedAsNoShow()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This appointment cannot be marked as no-show'
+                    'message' => 'This appointment cannot be marked as no-show',
                 ], 422);
             }
 
@@ -297,20 +348,21 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointment,
-                'message' => 'Appointment marked as no-show'
+                'data'    => $appointment,
+                'message' => 'Appointment marked as no-show',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error marking appointment as no-show: ' . $e->getMessage()
+                'message' => 'Error marking appointment as no-show: ' . $e->getMessage(),
             ], 500);
         }
     }
 
     /**
      * Reschedule an appointment.
+     * Sends WhatsApp reschedule notification to both client and lawyer.
      */
     public function reschedule(Request $request, Appointment $appointment): JsonResponse
     {
@@ -323,29 +375,51 @@ class AppointmentController extends Controller
             if (!$appointment->canBeCancelled()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This appointment cannot be rescheduled'
+                    'message' => 'This appointment cannot be rescheduled',
                 ], 422);
             }
 
-            $appointment->update($validated);
-            $appointment->load(['user:id,name', 'lawyer:id,full_name']);
+            // Load relations before changing so we have phone data
+            $appointment->load(['user', 'lawyer', 'lawyer.user']);
 
-            return response()->json([
+            // Capture the old time for the notification
+            $oldTime = $appointment->appointment_time?->format('d M Y h:i A') ?? '';
+
+            $appointment->update($validated);
+            $appointment->refresh();
+
+            // Send WhatsApp reschedule notifications (async, non-blocking)
+            try {
+                $whatsAppService = app(WhatsAppService::class);
+                $whatsAppService->sendRescheduleNotification($appointment, $oldTime);
+            } catch (\Throwable $waException) {
+                report($waException);
+            }
+
+            // Build phone warnings for response
+            $warnings = $this->buildPhoneWarnings($appointment);
+
+            $responseData = [
                 'success' => true,
-                'data' => $appointment,
-                'message' => 'Appointment rescheduled successfully'
-            ]);
+                'data'    => $appointment,
+                'message' => 'Appointment rescheduled successfully',
+            ];
+            if (!empty($warnings)) {
+                $responseData['warnings'] = $warnings;
+            }
+
+            return response()->json($responseData);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors'  => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error rescheduling appointment: ' . $e->getMessage()
+                'message' => 'Error rescheduling appointment: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -363,14 +437,14 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointments,
-                'message' => 'User appointments retrieved successfully'
+                'data'    => $appointments,
+                'message' => 'User appointments retrieved successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving user appointments: ' . $e->getMessage()
+                'message' => 'Error retrieving user appointments: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -388,14 +462,14 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointments,
-                'message' => 'Lawyer appointments retrieved successfully'
+                'data'    => $appointments,
+                'message' => 'Lawyer appointments retrieved successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving lawyer appointments: ' . $e->getMessage()
+                'message' => 'Error retrieving lawyer appointments: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -409,7 +483,6 @@ class AppointmentController extends Controller
             $query = Appointment::scheduled()->future()
                 ->with(['user:id,name', 'lawyer:id,full_name']);
 
-            // Filter by user or lawyer if provided
             if ($request->has('user_id')) {
                 $query->forUser($request->user_id);
             }
@@ -418,7 +491,6 @@ class AppointmentController extends Controller
                 $query->forLawyer($request->lawyer_id);
             }
 
-            // Limit results if specified
             if ($request->has('limit')) {
                 $query->limit($request->limit);
             }
@@ -427,14 +499,14 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointments,
-                'message' => 'Upcoming appointments retrieved successfully'
+                'data'    => $appointments,
+                'message' => 'Upcoming appointments retrieved successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving upcoming appointments: ' . $e->getMessage()
+                'message' => 'Error retrieving upcoming appointments: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -448,7 +520,6 @@ class AppointmentController extends Controller
             $query = Appointment::scheduled()->today()
                 ->with(['user:id,name', 'lawyer:id,full_name']);
 
-            // Filter by user or lawyer if provided
             if ($request->has('user_id')) {
                 $query->forUser($request->user_id);
             }
@@ -461,14 +532,14 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $appointments,
-                'message' => 'Today\'s appointments retrieved successfully'
+                'data'    => $appointments,
+                'message' => "Today's appointments retrieved successfully",
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving today\'s appointments: ' . $e->getMessage()
+                'message' => "Error retrieving today's appointments: " . $e->getMessage(),
             ], 500);
         }
     }
@@ -482,7 +553,7 @@ class AppointmentController extends Controller
             if (!$appointment->isScheduled()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot generate meeting link for non-scheduled appointments'
+                    'message' => 'Cannot generate meeting link for non-scheduled appointments',
                 ], 422);
             }
 
@@ -491,17 +562,17 @@ class AppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => [
+                'data'    => [
                     'meeting_link' => $meetingLink,
-                    'appointment' => $appointment
+                    'appointment'  => $appointment,
                 ],
-                'message' => 'Meeting link generated successfully'
+                'message' => 'Meeting link generated successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error generating meeting link: ' . $e->getMessage()
+                'message' => 'Error generating meeting link: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -513,38 +584,47 @@ class AppointmentController extends Controller
     {
         try {
             $validated = $request->validate([
-                'appointment_ids' => 'required|array',
-                'appointment_ids.*' => 'required|uuid|exists:appointments,id',
+                'appointment_ids'   => 'required|array',
+                'appointment_ids.*' => 'required|integer|exists:appointments,id',
             ]);
 
             $appointments = Appointment::whereIn('id', $validated['appointment_ids'])
                 ->where('status', Appointment::STATUS_SCHEDULED)
                 ->where('appointment_time', '>', now())
+                ->with(['user', 'lawyer', 'lawyer.user'])
                 ->get();
 
             foreach ($appointments as $appointment) {
                 $appointment->markAsCancelled();
+
+                // Send WhatsApp cancellation notifications
+                try {
+                    $whatsAppService = app(WhatsAppService::class);
+                    $whatsAppService->sendCancellationNotification($appointment);
+                } catch (\Throwable $waException) {
+                    report($waException);
+                }
             }
 
             return response()->json([
                 'success' => true,
-                'data' => [
+                'data'    => [
                     'cancelled_count' => $appointments->count(),
-                    'appointments' => $appointments
+                    'appointments'    => $appointments,
                 ],
-                'message' => 'Appointments cancelled successfully'
+                'message' => 'Appointments cancelled successfully',
             ]);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors'  => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error cancelling appointments: ' . $e->getMessage()
+                'message' => 'Error cancelling appointments: ' . $e->getMessage(),
             ], 500);
         }
     }

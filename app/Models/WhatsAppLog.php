@@ -10,6 +10,9 @@ class WhatsAppLog extends Model
 {
     use HasFactory;
 
+    // Explicitly set table name - Laravel converts 'WhatsAppLog' to 'whats_app_logs' by default
+    protected $table = 'whatsapp_logs';
+
     public $timestamps = false;
 
     protected $fillable = [

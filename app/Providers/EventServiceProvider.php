@@ -2,16 +2,18 @@
 
 namespace App\Providers;
 
-use App\Events\AppointmentBooked;
-use App\Listeners\SendAppointmentWhatsAppNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
 {
+    /**
+     * The event listener mappings for the application.
+     * Note: Laravel auto-discovers events in the app/Listeners directory.
+     * Defining them here manually causes double-firing of events.
+     *
+     * @var array
+     */
     protected $listen = [
-        AppointmentBooked::class => [
-            SendAppointmentWhatsAppNotification::class,
-        ],
+        //
     ];
 }
-
