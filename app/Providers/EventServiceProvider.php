@@ -14,6 +14,14 @@ class EventServiceProvider extends ServiceProvider
      * @var array
      */
     protected $listen = [
-        //
+        \App\Events\AppointmentBooked::class => [
+            \App\Listeners\SendAppointmentWhatsAppNotification::class,
+        ],
+        \App\Events\UserJoinedConsultation::class => [
+            \App\Listeners\SendJoinAlertWhatsAppNotification::class,
+        ],
+        \App\Events\ConsultationSessionEnded::class => [
+            \App\Listeners\SendSessionEndedWhatsAppNotification::class,
+        ],
     ];
 }
