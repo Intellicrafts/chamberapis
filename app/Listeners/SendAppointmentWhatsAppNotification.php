@@ -11,18 +11,22 @@ class SendAppointmentWhatsAppNotification
     public function handle(AppointmentBooked $event): void
     {
         try {
-            $whatsAppService = new WhatsAppService();
+            $appointment = $event->appointment;
 
-            // 1. Notify Client (Job dispatched internally)
-            $whatsAppService->sendAppointmentConfirmationToClient($event->client, $event->appointment);
+            // Ensure relations are loaded so phone numbers and names are available
+            $appointment->loadMissing(['user', 'lawyer', 'lawyer.user']);
 
-            // 2. Notify Lawyer (Job dispatched internally)
-            $whatsAppService->sendAppointmentNotificationToLawyer($event->lawyer, $event->appointment);
+            $service = new WhatsAppService();
 
-        } catch (\Throwable $exception) {
-            Log::error('SendAppointmentWhatsAppNotification execution failed.', [
-                'appointment_id' => $event->appointment->id ?? null,
-                'error'          => $exception->getMessage(),
+            // One message to client, one message to lawyer — no more
+            $service->sendAppointmentConfirmationToClient($event->client, $appointment);
+            $service->sendAppointmentNotificationToLawyer($event->lawyer, $appointment);
+
+        } catch (\Throwable $e) {
+            Log::error('SendAppointmentWhatsAppNotification failed.', [
+                'appointment_id' => $event->appointment?->id,
+                'error'          => $e->getMessage(),
+                'trace'          => $e->getTraceAsString(),
             ]);
         }
     }
