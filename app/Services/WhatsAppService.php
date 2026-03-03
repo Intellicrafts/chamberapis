@@ -6,27 +6,343 @@ use App\Models\Appointment;
 use App\Models\Lawyer;
 use App\Models\User;
 use App\Models\WhatsAppLog;
-use App\Jobs\SendWhatsAppMessage;
 use Illuminate\Support\Facades\Log;
-use Twilio\Exceptions\TwilioException;
-use Twilio\Rest\Client;
+use Twilio\Rest\Client as TwilioClient;
 
+/**
+ * WhatsAppService - Sends WhatsApp messages directly via Twilio.
+ *
+ * Calls Twilio synchronously (no Job / Queue dependency).
+ * Works on any server regardless of queue driver or worker status.
+ *
+ * Events handled:
+ *   1. Appointment Booking  → sendAppointmentConfirmationToClient / sendAppointmentNotificationToLawyer
+ *   2. 5-Min Reminder       → sendReminderNotification
+ *   3. Join Alert           → sendJoinAlertNotification
+ *   4. Session Ended        → sendSessionEndedNotification
+ *   5. Cancellation         → sendCancellationNotification
+ *   6. Reschedule           → sendRescheduleNotification
+ */
 class WhatsAppService
 {
-    protected Client $twilio;
-    protected string $brandName = "🏛️ *MeraVakil Professional Chambers*";
+    private TwilioClient $client;
+    private string $fromNumber;
+    private string $brandName = "🏛️ *MeraVakil Professional Chambers*";
 
     public function __construct()
     {
-        $this->twilio = new Client(
-            config('services.twilio.sid'),
-            config('services.twilio.token')
-        );
+        $sid   = config('services.twilio.sid');
+        $token = config('services.twilio.token');
+        $this->fromNumber = config('services.twilio.whatsapp_from');
+
+        if (empty($sid) || empty($token)) {
+            Log::error('WhatsAppService: Twilio credentials missing in config/services.php');
+        }
+
+        $this->client = new TwilioClient($sid, $token);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // PUBLIC NOTIFICATION METHODS
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Event 1a: Booking confirmation → Client
+     */
+    public function sendAppointmentConfirmationToClient(User $client, Appointment $appointment): void
+    {
+        $phone = $this->extractPhone($client->phone);
+        if (!$phone) {
+            Log::warning('WhatsApp: client phone missing, skipping booking confirmation.', ['user_id' => $client->id]);
+            return;
+        }
+
+        $date       = $appointment->appointment_time?->format('d M Y') ?? '-';
+        $time       = $appointment->appointment_time?->format('h:i A') ?? '-';
+        $lawyerName = $appointment->lawyer?->full_name ?? 'your Lawyer';
+
+        $body  = "{$this->brandName}\n\n";
+        $body .= "Hello *{$client->name}*,\n\n";
+        $body .= "✅ *Booking Confirmed!*\n";
+        $body .= "Your legal consultation has been successfully scheduled.\n\n";
+        $body .= "👨‍⚖️ *Expert:* {$lawyerName}\n";
+        $body .= "📅 *Date:* {$date}\n";
+        $body .= "⏰ *Time:* {$time}\n\n";
+        $body .= "Please be available 5 minutes before the session. Thank you for choosing MeraVakil!";
+
+        $this->send($phone, $body, 'appointment_confirmation_client', $appointment->id);
     }
 
     /**
-     * Internal method to actually hit Twilio API.
-     * Should only be called by the SendWhatsAppMessage queued job.
+     * Event 1b: New booking notification → Lawyer
+     */
+    public function sendAppointmentNotificationToLawyer(Lawyer $lawyer, Appointment $appointment): void
+    {
+        $phone = $this->extractPhone($lawyer->phone_number ?? $lawyer->user?->phone);
+        if (!$phone) {
+            Log::warning('WhatsApp: lawyer phone missing, skipping booking notification.', ['lawyer_id' => $lawyer->id]);
+            return;
+        }
+
+        $date       = $appointment->appointment_time?->format('d M Y') ?? '-';
+        $time       = $appointment->appointment_time?->format('h:i A') ?? '-';
+        $clientName = $appointment->user?->name ?? 'A client';
+
+        $body  = "{$this->brandName}\n\n";
+        $body .= "Hello *{$lawyer->full_name}*,\n\n";
+        $body .= "🆕 *New Appointment Received!*\n";
+        $body .= "A client has booked a consultation session with your chamber.\n\n";
+        $body .= "👤 *Client:* {$clientName}\n";
+        $body .= "📅 *Date:* {$date}\n";
+        $body .= "⏰ *Time:* {$time}\n\n";
+        $body .= "Manage your schedule via your MeraVakil Dashboard.";
+
+        $this->send($phone, $body, 'appointment_notification_lawyer', $appointment->id);
+    }
+
+    /**
+     * Event 2: 5-minute session reminder → both parties
+     */
+    public function sendReminderNotification(Appointment $appointment): void
+    {
+        $time = $appointment->appointment_time?->format('h:i A') ?? '-';
+
+        $clientPhone = $this->extractPhone($appointment->user?->phone);
+        if ($clientPhone) {
+            $lawyerName = $appointment->lawyer?->full_name ?? 'your Lawyer';
+            $body = "{$this->brandName}\n\n⚠️ *SESSION REMINDER*\n\n"
+                  . "Hello *{$appointment->user->name}*,\n"
+                  . "Your consultation with *{$lawyerName}* starts in *5 minutes* at {$time}.\n\n"
+                  . "Please log in and join your chamber now!";
+            $this->send($clientPhone, $body, 'appointment_reminder_client', $appointment->id);
+        }
+
+        $lawyerPhone = $this->extractPhone($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone);
+        if ($lawyerPhone) {
+            $clientName = $appointment->user?->name ?? 'Client';
+            $body = "{$this->brandName}\n\n⚠️ *SESSION REMINDER*\n\n"
+                  . "Hello *{$appointment->lawyer->full_name}*,\n"
+                  . "Your session with *{$clientName}* starts in *5 minutes* at {$time}.\n\n"
+                  . "Please log in to your consultation chamber now!";
+            $this->send($lawyerPhone, $body, 'appointment_reminder_lawyer', $appointment->id);
+        }
+    }
+
+    /**
+     * Event 3: Join alert → the party that hasn't joined yet
+     *
+     * @param string $joinedUserType  'client' or 'lawyer'
+     */
+    public function sendJoinAlertNotification(Appointment $appointment, string $joinedUserType): void
+    {
+        if ($joinedUserType === 'client') {
+            // Client just joined → alert Lawyer
+            $phone = $this->extractPhone($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone);
+            if ($phone) {
+                $clientName = $appointment->user?->name ?? 'Your client';
+                $body = "{$this->brandName}\n\n🚨 *Client Waiting*\n\n"
+                      . "Hello *{$appointment->lawyer->full_name}*,\n"
+                      . "*{$clientName}* has joined the consultation chamber and is waiting for you.\n\n"
+                      . "Please join the session immediately.";
+                $this->send($phone, $body, 'participant_joined_lawyer_alert', $appointment->id);
+            }
+        } elseif ($joinedUserType === 'lawyer') {
+            // Lawyer just joined → alert Client
+            $phone = $this->extractPhone($appointment->user?->phone);
+            if ($phone) {
+                $lawyerName = $appointment->lawyer?->full_name ?? 'Your lawyer';
+                $body = "{$this->brandName}\n\n🚨 *Lawyer Waiting*\n\n"
+                      . "Hello *{$appointment->user->name}*,\n"
+                      . "*{$lawyerName}* has joined the consultation chamber and is waiting for you.\n\n"
+                      . "Please join the session immediately.";
+                $this->send($phone, $body, 'participant_joined_client_alert', $appointment->id);
+            }
+        }
+    }
+
+    /**
+     * Event 4: Session completed → both parties
+     */
+    public function sendSessionEndedNotification(Appointment $appointment): void
+    {
+        $clientPhone = $this->extractPhone($appointment->user?->phone);
+        if ($clientPhone) {
+            $body = "{$this->brandName}\n\n🤝 *Session Completed*\n\n"
+                  . "Hello *{$appointment->user->name}*,\n"
+                  . "Your legal consultation has officially ended.\n\n"
+                  . "Thank you for trusting *MeraVakil*. We hope your queries were resolved!";
+            $this->send($clientPhone, $body, 'session_ended_client', $appointment->id);
+        }
+
+        $lawyerPhone = $this->extractPhone($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone);
+        if ($lawyerPhone) {
+            $body = "{$this->brandName}\n\n🤝 *Session Completed*\n\n"
+                  . "Hello *{$appointment->lawyer->full_name}*,\n"
+                  . "The consultation session has safely ended.\n\n"
+                  . "Great job! Review session reports in your MeraVakil Dashboard.";
+            $this->send($lawyerPhone, $body, 'session_ended_lawyer', $appointment->id);
+        }
+    }
+
+    /**
+     * Event 5: Appointment cancelled → both parties
+     */
+    public function sendCancellationNotification(Appointment $appointment): void
+    {
+        $dateTime = $appointment->appointment_time?->format('d M Y, h:i A') ?? '-';
+
+        $clientPhone = $this->extractPhone($appointment->user?->phone);
+        if ($clientPhone) {
+            $body = "{$this->brandName}\n\n❌ *Appointment Cancelled*\n\n"
+                  . "Your consultation scheduled for *{$dateTime}* has been cancelled.";
+            $this->send($clientPhone, $body, 'appointment_cancelled_client', $appointment->id);
+        }
+
+        $lawyerPhone = $this->extractPhone($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone);
+        if ($lawyerPhone) {
+            $clientName = $appointment->user?->name ?? 'Client';
+            $body = "{$this->brandName}\n\n❌ *Appointment Cancelled*\n\n"
+                  . "Your session with *{$clientName}* on *{$dateTime}* has been cancelled.";
+            $this->send($lawyerPhone, $body, 'appointment_cancelled_lawyer', $appointment->id);
+        }
+    }
+
+    /**
+     * Event 6: Appointment rescheduled → both parties
+     */
+    public function sendRescheduleNotification(Appointment $appointment, string $oldTime = ''): void
+    {
+        $newDateTime = $appointment->appointment_time?->format('d M Y, h:i A') ?? '-';
+
+        $clientPhone = $this->extractPhone($appointment->user?->phone);
+        if ($clientPhone) {
+            $body = "{$this->brandName}\n\n🔄 *Appointment Rescheduled*\n\n"
+                  . "Your consultation has been moved to *{$newDateTime}*.\n"
+                  . "Please update your calendar accordingly.";
+            $this->send($clientPhone, $body, 'appointment_rescheduled_client', $appointment->id);
+        }
+
+        $lawyerPhone = $this->extractPhone($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone);
+        if ($lawyerPhone) {
+            $clientName = $appointment->user?->name ?? 'Client';
+            $body = "{$this->brandName}\n\n🔄 *Appointment Rescheduled*\n\n"
+                  . "Your session with *{$clientName}* has been moved to *{$newDateTime}*.";
+            $this->send($lawyerPhone, $body, 'appointment_rescheduled_lawyer', $appointment->id);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // CORE TWILIO SENDER  (no queue, no job, direct API call)
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Send a WhatsApp message directly via Twilio REST API.
+     * Logs success/failure to whatsapp_logs table.
+     */
+    public function send(
+        string $phone,
+        string $body,
+        string $messageType,
+        int|string|null $appointmentId = null,
+        bool $throwOnError = false
+    ): ?string {
+        $formatted = $this->formatWhatsAppNumber($phone);
+
+        try {
+            $message = $this->client->messages->create($formatted, [
+                'from' => $this->fromNumber,
+                'body' => $body,
+            ]);
+
+            WhatsAppLog::create([
+                'phone'          => $formatted,
+                'message_type'   => $messageType,
+                'appointment_id' => $appointmentId ? (int) $appointmentId : null,
+                'status'         => 'sent',
+                'twilio_sid'     => $message->sid,
+            ]);
+
+            Log::info('WhatsApp sent.', [
+                'to'   => $formatted,
+                'type' => $messageType,
+                'sid'  => $message->sid,
+            ]);
+
+            return $message->sid;
+
+        } catch (\Throwable $e) {
+            WhatsAppLog::create([
+                'phone'          => $formatted,
+                'message_type'   => $messageType,
+                'appointment_id' => $appointmentId ? (int) $appointmentId : null,
+                'status'         => 'failed',
+                'twilio_sid'     => null,
+            ]);
+
+            Log::error('WhatsApp send FAILED.', [
+                'to'    => $formatted,
+                'type'  => $messageType,
+                'error' => $e->getMessage(),
+                'code'  => $e->getCode(),
+            ]);
+
+            if ($throwOnError) {
+                throw $e;
+            }
+
+            return null;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // HELPERS
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Extract and validate a phone string, return null if unusable.
+     */
+    public function extractPhone(mixed $phone): ?string
+    {
+        $phone = trim((string) ($phone ?? ''));
+        if (empty($phone) || !$this->isValidPhone($phone)) {
+            return null;
+        }
+        return $phone;
+    }
+
+    /**
+     * Format a phone number to Twilio WhatsApp format: whatsapp:+91XXXXXXXXXX
+     */
+    public function formatWhatsAppNumber(string $phone): string
+    {
+        $phone = trim($phone);
+        $phone = str_replace([' ', '-', '(', ')'], '', $phone);
+        // Strip existing whatsapp: prefix to avoid doubling
+        $phone = preg_replace('/^whatsapp:/i', '', $phone) ?? $phone;
+
+        if (!str_starts_with($phone, '+')) {
+            // Bare 10-digit → assume India +91
+            if (strlen($phone) === 10 && ctype_digit($phone)) {
+                $phone = '+91' . $phone;
+            } else {
+                $phone = '+' . ltrim($phone, '0');
+            }
+        }
+
+        return 'whatsapp:' . $phone;
+    }
+
+    /**
+     * Basic phone validation: must have at least 10 digits.
+     */
+    public function isValidPhone(string $phone): bool
+    {
+        $digits = preg_replace('/\D/', '', $phone);
+        return !empty($digits) && strlen($digits) >= 10;
+    }
+
+    /**
+     * Legacy alias kept for compatibility with SendWhatsAppMessage job.
      */
     public function sendMessage(
         string $phone,
@@ -35,221 +351,6 @@ class WhatsAppService
         ?int $appointmentId = null,
         bool $throwOnError = false
     ): ?string {
-        if (empty(trim($phone))) {
-            return null;
-        }
-
-        $formattedPhone = $this->formatWhatsAppNumber($phone);
-
-        try {
-            $message = $this->twilio->messages->create(
-                $formattedPhone,
-                [
-                    'from' => config('services.twilio.whatsapp_from'),
-                    'body' => $bodyText,
-                ]
-            );
-
-            WhatsAppLog::create([
-                'phone'          => $formattedPhone,
-                'message_type'   => $messageType,
-                'appointment_id' => $appointmentId,
-                'status'         => 'sent',
-                'twilio_sid'     => $message->sid,
-            ]);
-
-            return $message->sid;
-
-        } catch (\Throwable $exception) {
-            $this->logFailure($formattedPhone, $messageType, $appointmentId, $exception);
-            if ($throwOnError) throw $exception;
-            return null;
-        }
-    }
-
-    /**
-     * Send booking confirmation to the client.
-     */
-    public function sendAppointmentConfirmationToClient(User $client, Appointment $appointment): void
-    {
-        $phone = trim((string) ($client->phone ?? ''));
-        if (empty($phone)) return;
-
-        $date = $appointment->appointment_time?->format('d M Y') ?? '';
-        $time = $appointment->appointment_time?->format('h:i A') ?? '';
-        $lawyerName = $appointment->lawyer?->full_name ?? 'your Lawyer';
-
-        $body = "{$this->brandName}\n\n";
-        $body .= "Hello *{$client->name}*,\n\n";
-        $body .= "✅ *Booking Confirmed!*\n";
-        $body .= "Your legal consultation has been successfully scheduled.\n\n";
-        $body .= "👨‍⚖️ *Expert:* {$lawyerName}\n";
-        $body .= "📅 *Date:* {$date}\n";
-        $body .= "⏰ *Time:* {$time}\n\n";
-        $body .= "Please be available 5 minutes before the session starts. Thank you for choosing MeraVakil!";
-
-        SendWhatsAppMessage::dispatchSync($phone, $body, 'appointment_confirmation_client', (int) $appointment->id);
-    }
-
-    /**
-     * Send new appointment notification to the lawyer.
-     */
-    public function sendAppointmentNotificationToLawyer(Lawyer $lawyer, Appointment $appointment): void
-    {
-        $phone = trim((string) ($lawyer->phone_number ?? $lawyer->user?->phone ?? ''));
-        if (empty($phone)) return;
-
-        $date = $appointment->appointment_time?->format('d M Y') ?? '';
-        $time = $appointment->appointment_time?->format('h:i A') ?? '';
-        $clientName = $appointment->user?->name ?? 'A client';
-
-        $body = "{$this->brandName}\n\n";
-        $body .= "Hello *{$lawyer->full_name}*,\n\n";
-        $body .= "🆕 *New Appointment Received!*\n";
-        $body .= "A client has booked a consultation session with your chamber.\n\n";
-        $body .= "👤 *Client:* {$clientName}\n";
-        $body .= "📅 *Date:* {$date}\n";
-        $body .= "⏰ *Time:* {$time}\n\n";
-        $body .= "To manage your schedule, please log into your MeraVakil Dashboard.";
-
-        SendWhatsAppMessage::dispatchSync($phone, $body, 'appointment_notification_lawyer', (int) $appointment->id);
-    }
-
-    /**
-     * Send 5-minute reminder notification.
-     */
-    public function sendReminderNotification(Appointment $appointment): void
-    {
-        $time = $appointment->appointment_time?->format('h:i A') ?? '';
-
-        // Remind client
-        $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
-        if (!empty($clientPhone)) {
-            $lawyerName = $appointment->lawyer?->full_name ?? 'your Lawyer';
-            $body = "{$this->brandName}\n\n⚠️ *URGENT REMINDER*\n\nHello *{$appointment->user->name}*,\nYour consultation with *{$lawyerName}* is starting in *5 minutes* ({$time}).\n\nPlease log in to the App and join your chamber now!";
-            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'appointment_reminder_client', (int) $appointment->id);
-        }
-
-        // Remind lawyer
-        $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
-        if (!empty($lawyerPhone)) {
-            $clientName = $appointment->user?->name ?? 'Client';
-            $body = "{$this->brandName}\n\n⚠️ *URGENT REMINDER*\n\nHello *{$appointment->lawyer->full_name}*,\nYour session with *{$clientName}* starts in *5 minutes* ({$time}).\n\nPlease log in to join your consultation chamber now!";
-            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'appointment_reminder_lawyer', (int) $appointment->id);
-        }
-    }
-
-    /**
-     * Send Join Alert when one participant joins and the other hasn't.
-     */
-    public function sendJoinAlertNotification(Appointment $appointment, string $joinedUserType): void
-    {
-        if ($joinedUserType === 'client') {
-            // Client joined, alert Lawyer
-            $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
-            if (!empty($lawyerPhone)) {
-                $clientName = $appointment->user?->name ?? 'Your client';
-                $body = "{$this->brandName}\n\n🚨 *Client Waiting*\n\nHello *{$appointment->lawyer->full_name}*,\n*{$clientName}* has just joined the consultation chamber and is officially waiting for you.\n\nPlease join the session immediately.";
-                SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'participant_joined_lawyer_alert', (int) $appointment->id);
-            }
-        } elseif ($joinedUserType === 'lawyer') {
-            // Lawyer joined, alert Client
-            $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
-            if (!empty($clientPhone)) {
-                $lawyerName = $appointment->lawyer?->full_name ?? 'Your lawyer';
-                $body = "{$this->brandName}\n\n🚨 *Lawyer Waiting*\n\nHello *{$appointment->user->name}*,\n*{$lawyerName}* has just joined the consultation chamber and is officially waiting for you to resolve your legal queries.\n\nPlease join the session immediately.";
-                SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'participant_joined_client_alert', (int) $appointment->id);
-            }
-        }
-    }
-
-    /**
-     * Send Session Ended Notification.
-     */
-    public function sendSessionEndedNotification(Appointment $appointment): void
-    {
-        // To Client
-        $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
-        if (!empty($clientPhone)) {
-            $body = "{$this->brandName}\n\n🤝 *Session Completed*\n\nHello *{$appointment->user->name}*,\nYour legal consultation session has officially ended.\n\nThank you for trusting *MeraVakil*. We hope your queries were resolved successfully!";
-            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'session_ended_client', (int) $appointment->id);
-        }
-
-        // To Lawyer
-        $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
-        if (!empty($lawyerPhone)) {
-            $body = "{$this->brandName}\n\n🤝 *Session Completed*\n\nHello *{$appointment->lawyer->full_name}*,\nThe consultation session with your client has safely ended.\n\nGreat job! You can review reports in your MeraVakil Dashboard.";
-            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'session_ended_lawyer', (int) $appointment->id);
-        }
-    }
-
-    public function sendCancellationNotification(Appointment $appointment): void
-    {
-        $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
-        if (!empty($clientPhone)) {
-            $body = "{$this->brandName}\n\n❌ *Appointment Cancelled*\n\nYour consultation scheduled for *" . ($appointment->appointment_time?->format('d M, h:i A') ?? '') . "* has been successfully cancelled.";
-            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'appointment_cancelled_client', (int) $appointment->id);
-        }
-
-        $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
-        if (!empty($lawyerPhone)) {
-            $body = "{$this->brandName}\n\n❌ *Appointment Cancelled*\n\nYour session with " . ($appointment->user?->name ?? 'Client') . " on *" . ($appointment->appointment_time?->format('d M, h:i A') ?? '') . "* has been effectively cancelled.";
-            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'appointment_cancelled_lawyer', (int) $appointment->id);
-        }
-    }
-
-    public function sendRescheduleNotification(Appointment $appointment, string $oldTime): void
-    {
-        $clientPhone = trim((string) ($appointment->user?->phone ?? ''));
-        $newTime = $appointment->appointment_time?->format('d M, h:i A') ?? '';
-        if (!empty($clientPhone)) {
-            $body = "{$this->brandName}\n\n🔄 *Appointment Rescheduled*\n\nYour consultation has been officially moved to *{$newTime}*. Please update your calendar.";
-            SendWhatsAppMessage::dispatchSync($clientPhone, $body, 'appointment_rescheduled_client', (int) $appointment->id);
-        }
-
-        $lawyerPhone = trim((string) ($appointment->lawyer?->phone_number ?? $appointment->lawyer?->user?->phone ?? ''));
-        if (!empty($lawyerPhone)) {
-            $body = "{$this->brandName}\n\n🔄 *Appointment Rescheduled*\n\nYour session with " . ($appointment->user?->name ?? 'Client') . " has been officially moved to *{$newTime}*.";
-            SendWhatsAppMessage::dispatchSync($lawyerPhone, $body, 'appointment_rescheduled_lawyer', (int) $appointment->id);
-        }
-    }
-
-    public function formatWhatsAppNumber(string $phone): string
-    {
-        $phone = trim($phone);
-        $phone = str_replace([' ', '-', '(', ')'], '', $phone);
-        $phone = preg_replace('/^whatsapp:/', '', $phone) ?? $phone;
-
-        if (!str_starts_with($phone, '+')) {
-            if (strlen($phone) === 10 && ctype_digit($phone)) {
-                $phone = '+91' . $phone;
-            } else {
-                $phone = '+' . ltrim($phone, '0');
-            }
-        }
-        return 'whatsapp:' . $phone;
-    }
-
-    public function isValidPhone(string $phone): bool
-    {
-        $phone = trim($phone);
-        return !empty($phone) && strlen(preg_replace('/\D/', '', $phone)) >= 10;
-    }
-
-    protected function logFailure(string $phone, string $messageType, ?int $appointmentId, \Throwable $exception): void
-    {
-        WhatsAppLog::create([
-            'phone'          => $phone,
-            'message_type'   => $messageType,
-            'appointment_id' => $appointmentId,
-            'status'         => 'failed',
-            'twilio_sid'     => null,
-        ]);
-
-        Log::error('WhatsApp send failed.', [
-            'phone'          => $phone,
-            'message_type'   => $messageType,
-            'error'          => $exception->getMessage(),
-        ]);
+        return $this->send($phone, $bodyText, $messageType, $appointmentId, $throwOnError);
     }
 }
