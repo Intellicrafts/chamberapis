@@ -15,7 +15,7 @@ use App\Http\Controllers\API\AppointmentController;
 use App\Http\Controllers\API\LawyerController;
 use App\Http\Controllers\API\LawyerEnrollmentController;
 use App\Http\Controllers\API\NotificationController;
-use App\Http\Controllers\API\LawyerAdminBController;
+use App\Http\Controllers\API\LawyerAdminController;
 use App\Http\Controllers\API\LawyerCaseController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\LawyerAdditionalController;
@@ -303,18 +303,18 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
 
-        Route::prefix('notifications')->group(function () {
-        Route::get('/', [NotificationController::class, 'index']);
-        Route::get('/user/{userId}', [NotificationController::class, 'userNotifications']);
-        Route::get('/user/{userId}/unread', [NotificationController::class, 'unreadByUser']);
-        Route::get('/user/{userId}/read', [NotificationController::class, 'readByUser']);
-        Route::post('/', [NotificationController::class, 'store']);
-        Route::get('/{id}', [NotificationController::class, 'show']);
-        Route::put('/{id}', [NotificationController::class, 'update']);
-        Route::delete('/{id}', [NotificationController::class, 'destroy']);
-        Route::post('/{id}/read', [NotificationController::class, 'markAsRead']);
-        Route::post('/{id}/unread', [NotificationController::class, 'markAsUnread']);
-    });
+        Route::prefix('notifications')->name('notifications.')->group(function () {
+            Route::get('/',            [NotificationController::class, 'index'])->name('index');
+            Route::get('/user/{userId}',         [NotificationController::class, 'userNotifications'])->name('user');
+            Route::get('/user/{userId}/unread',  [NotificationController::class, 'unreadByUser'])->name('user.unread');
+            Route::get('/user/{userId}/read',    [NotificationController::class, 'readByUser'])->name('user.read');
+            Route::post('/',           [NotificationController::class, 'store'])->name('store');
+            Route::get('/{id}',        [NotificationController::class, 'show'])->name('show');
+            Route::put('/{id}',        [NotificationController::class, 'update'])->name('update');
+            Route::delete('/{id}',     [NotificationController::class, 'destroy'])->name('destroy');
+            Route::post('/{id}/read',  [NotificationController::class, 'markAsRead'])->name('read');
+            Route::post('/{id}/unread',[NotificationController::class, 'markAsUnread'])->name('unread');
+        });
 
 
        Route::prefix('lawyer_admin')->group(function () {
@@ -370,18 +370,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [\App\Http\Controllers\API\ConsultationSessionController::class, 'index'])->name('index');
         Route::post('/start/{appointmentId}', [\App\Http\Controllers\API\ConsultationSessionController::class, 'start'])->name('start');
         Route::get('/active', [\App\Http\Controllers\API\ConsultationSessionController::class, 'getActiveSession'])->name('active');
-        
+
         // Session Actions (by token)
         Route::get('/{sessionToken}', [\App\Http\Controllers\API\ConsultationSessionController::class, 'show'])->name('show');
         Route::get('/{sessionToken}/can-join', [\App\Http\Controllers\API\ConsultationSessionController::class, 'canJoin'])->name('can-join');
+        Route::post('/{sessionToken}/join', [\App\Http\Controllers\API\ConsultationSessionController::class, 'join'])->name('join');
         Route::post('/{sessionToken}/end', [\App\Http\Controllers\API\ConsultationSessionController::class, 'end'])->name('end');
-        
+
         // Message Management
         Route::get('/{sessionToken}/messages', [\App\Http\Controllers\API\ConsultationMessageController::class, 'index'])->name('messages.index');
         Route::post('/{sessionToken}/messages', [\App\Http\Controllers\API\ConsultationMessageController::class, 'store'])->name('messages.store');
         Route::patch('/{sessionToken}/messages/{messageId}/read', [\App\Http\Controllers\API\ConsultationMessageController::class, 'markAsRead'])->name('messages.read');
         Route::get('/{sessionToken}/messages/unread-count', [\App\Http\Controllers\API\ConsultationMessageController::class, 'getUnreadCount'])->name('messages.unread-count');
-        
+
         // Real-time Features
         Route::post('/{sessionToken}/typing', [\App\Http\Controllers\API\ConsultationMessageController::class, 'typing'])->name('typing');
     });
