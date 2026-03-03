@@ -12,16 +12,26 @@ class SendSessionEndedWhatsAppNotification
     {
         try {
             $session = $event->session;
-            $session->loadMissing('appointment', 'appointment.user', 'appointment.lawyer', 'appointment.lawyer.user');
 
-            if ($session->appointment) {
-                $whatsAppService = new WhatsAppService();
-                $whatsAppService->sendSessionEndedNotification($session->appointment);
+            $session->loadMissing([
+                'appointment',
+                'appointment.user',
+                'appointment.lawyer',
+                'appointment.lawyer.user',
+            ]);
+
+            $appointment = $session->appointment;
+            if (!$appointment) {
+                return;
             }
-        } catch (\Throwable $exception) {
+
+            $service = new WhatsAppService();
+            $service->sendSessionEndedNotification($appointment);
+
+        } catch (\Throwable $e) {
             Log::error('SendSessionEndedWhatsAppNotification failed.', [
-                'session_id' => $event->session->id ?? null,
-                'error'      => $exception->getMessage(),
+                'session_id' => $event->session?->id,
+                'error'      => $e->getMessage(),
             ]);
         }
     }

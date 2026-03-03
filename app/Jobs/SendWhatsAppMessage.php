@@ -7,20 +7,18 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * SendWhatsAppMessage - used only by appointments:send-reminders command.
+ * All event-based notifications are now sent directly via WhatsAppService::send().
+ */
 class SendWhatsAppMessage implements ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 3;
+    public int $tries   = 3;
     public array $backoff = [15, 60, 180];
     public int $timeout = 60;
 
-    /**
-     * @param string $phone The recipient phone number
-     * @param string $bodyText The beautiful custom formatted message
-     * @param string $messageType Internal tracking type
-     * @param int|null $appointmentId
-     */
     public function __construct(
         public string $phone,
         public string $bodyText,
@@ -30,18 +28,32 @@ class SendWhatsAppMessage implements ShouldQueue
         $this->onQueue('whatsapp');
     }
 
-    public function handle(WhatsAppService $whatsAppService): void
+    public function handle(WhatsAppService $service): void
     {
-        if (!$whatsAppService->isValidPhone($this->phone)) {
+        if (!$service->isValidPhone($this->phone)) {
+            Log::warning('SendWhatsAppMessage: invalid phone, discarding job.', [
+                'phone' => $this->phone,
+                'type'  => $this->messageType,
+            ]);
             return;
         }
 
-        $whatsAppService->sendMessage(
+        // Use send() directly — throwOnError=true so queue retries on transient Twilio errors
+        $service->send(
             $this->phone,
             $this->bodyText,
             $this->messageType,
             $this->appointmentId,
             throwOnError: true
         );
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        Log::error('SendWhatsAppMessage job permanently failed.', [
+            'phone' => $this->phone,
+            'type'  => $this->messageType,
+            'error' => $e->getMessage(),
+        ]);
     }
 }
