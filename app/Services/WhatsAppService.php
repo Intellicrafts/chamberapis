@@ -33,7 +33,7 @@ class WhatsAppService
     private const BRAND     = "🏛️ *MeraVakil*";
     private const TAGLINE   = "_India's Trusted Legal Platform_";
     private const DIVIDER   = "━━━━━━━━━━━━━━━━━━━━━━";
-    private const FOOTER    = "📲 *meravakil.com*  |  ☎️ Support: +91-XXXXXXXXXX";
+    private const FOOTER    = "📲 *dev.merabakil.com*  |  ☎️ Support: +91-9557824745";
 
     public function __construct()
     {
