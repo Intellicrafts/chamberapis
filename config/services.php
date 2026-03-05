@@ -42,10 +42,13 @@ return [
     ],
 
     'twilio' => [
-        'sid' => env('TWILIO_ACCOUNT_SID'),
-        'token' => env('TWILIO_AUTH_TOKEN'),
-        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
-        'template_sid' => env('TWILIO_TEMPLATE_SID'),
+        'sid'            => env('TWILIO_ACCOUNT_SID'),
+        'token'          => env('TWILIO_AUTH_TOKEN'),
+        'whatsapp_from'  => env('TWILIO_WHATSAPP_FROM'),
+        'template_sid'   => env('TWILIO_TEMPLATE_SID'),
+        'api_key_sid'    => env('TWILIO_API_KEY_SID'),
+        'api_key_secret' => env('TWILIO_API_KEY_SECRET'),
+        'twiml_app_sid'  => env('TWILIO_TWIML_APP_SID'),
     ],
 
 ];
