@@ -27,16 +27,16 @@ class BaseDataSeeder extends Seeder
         $userIds = [];
 
         $usersData = [
-            ['name' => 'Arjun Sharma',    'email' => 'arjun.sharma@example.com'],
-            ['name' => 'Priya Verma',     'email' => 'priya.verma@example.com'],
-            ['name' => 'Rahul Gupta',     'email' => 'rahul.gupta@example.com'],
-            ['name' => 'Sunita Patel',    'email' => 'sunita.patel@example.com'],
-            ['name' => 'Vikram Singh',    'email' => 'vikram.singh@example.com'],
-            ['name' => 'Neha Joshi',      'email' => 'neha.joshi@example.com'],
-            ['name' => 'Amit Khanna',     'email' => 'amit.khanna@example.com'],
-            ['name' => 'Kavya Reddy',     'email' => 'kavya.reddy@example.com'],
-            ['name' => 'Mohit Yadav',     'email' => 'mohit.yadav@example.com'],
-            ['name' => 'Deepa Nair',      'email' => 'deepa.nair@example.com'],
+            ['name' => 'Arjun Sharma',    'email' => 'arjun.sharma@example.com',   'phone' => '9876543210'],
+            ['name' => 'Priya Verma',     'email' => 'priya.verma@example.com',    'phone' => '9876543211'],
+            ['name' => 'Rahul Gupta',     'email' => 'rahul.gupta@example.com',    'phone' => '9876543212'],
+            ['name' => 'Sunita Patel',    'email' => 'sunita.patel@example.com',   'phone' => '9876543213'],
+            ['name' => 'Vikram Singh',    'email' => 'vikram.singh@example.com',   'phone' => '9876543214'],
+            ['name' => 'Neha Joshi',      'email' => 'neha.joshi@example.com',     'phone' => '9876543215'],
+            ['name' => 'Amit Khanna',     'email' => 'amit.khanna@example.com',    'phone' => '9876543216'],
+            ['name' => 'Kavya Reddy',     'email' => 'kavya.reddy@example.com',    'phone' => '9876543217'],
+            ['name' => 'Mohit Yadav',     'email' => 'mohit.yadav@example.com',    'phone' => '9876543218'],
+            ['name' => 'Deepa Nair',      'email' => 'deepa.nair@example.com',     'phone' => '9876543219'],
         ];
 
         foreach ($usersData as $userData) {
@@ -50,6 +50,7 @@ class BaseDataSeeder extends Seeder
             $id = DB::table('users')->insertGetId([
                 'name'       => $userData['name'],
                 'email'      => $userData['email'],
+                'phone'      => $userData['phone'],
                 'password'   => Hash::make('password123'),
                 'user_type'  => 1,
                 'active'     => true,
