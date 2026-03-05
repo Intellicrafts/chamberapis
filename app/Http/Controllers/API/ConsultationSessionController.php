@@ -8,6 +8,7 @@ use App\Models\ConsultationSession;
 use App\Models\ConsultationMessage;
 use App\Events\UserJoinedConsultation;
 use App\Events\ConsultationSessionEnded;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -154,6 +155,15 @@ class ConsultationSessionController extends Controller
 
             return $session;
         });
+
+        // Fire WhatsApp join alert (listener handles 3-min delay)
+        try {
+            $authUser = auth()->user();
+            $userType = ($userId == $appointment->user_id) ? 'user' : 'lawyer';
+            event(new UserJoinedConsultation($session, $userId, $authUser?->name ?? '', $userType));
+        } catch (\Throwable $e) {
+            Log::info('UserJoinedConsultation event failed: ' . $e->getMessage());
+        }
 
         return $session;
     }

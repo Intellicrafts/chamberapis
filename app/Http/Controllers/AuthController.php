@@ -9,6 +9,7 @@ use App\Models\Lawyer;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use App\Models\LawyerEnrollmentStatusLog;
+use App\Events\UserRegistered;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -130,6 +131,14 @@ class AuthController extends Controller
 
                 // Clear rate limiter on success
                 RateLimiter::clear($key);
+
+                // Fire welcome WhatsApp notification
+                try {
+                    event(new UserRegistered($user, $lawyer));
+                } catch (\Throwable $we) {
+                    // Non-fatal — log and continue
+                    \Log::warning('UserRegistered event failed.', ['error' => $we->getMessage()]);
+                }
 
                 // Prepare response data
                 $response = [
