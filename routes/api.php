@@ -21,6 +21,7 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\LawyerAdditionalController;
 use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\MailController;
+use App\Http\Controllers\API\VoiceCallController;
 
 
 Route::get('/user', function (Request $request) {
@@ -32,6 +33,11 @@ Route::middleware('auth:sanctum')->post('/auth/save/additional', [GoogleAuthCont
 
 // Protected routes (require authentication)
 Route::middleware(['auth:sanctum'])->group(function () {
+
+    // ─── Twilio Voice Calling ────────────────────────────────────────────────
+    Route::get('/voice/token',            [VoiceCallController::class, 'generateToken']);
+    Route::get('/voice/callee/{sessionToken}', [VoiceCallController::class, 'calleeInfo']);
+
     
     // Save/Update lawyer additional details
     Route::post('/lawyer/additional-details', [LawyerAdditionalController::class, 'saveAdditionalDetails'])
@@ -56,6 +62,12 @@ Route::prefix('public')->group(function () {
         ->name('public.search-lawyers');
     
 });
+
+// ─── PUBLIC: Twilio Voice TwiML Webhook ─────────────────────────────────────
+// Twilio calls this when a call is initiated — must be public (no auth).
+Route::post('/voice/twiml', [VoiceCallController::class, 'twiml'])->name('voice.twiml');
+
+
 
 
 Route::post('/deploy', [GitDeployController::class, 'deploy']);
