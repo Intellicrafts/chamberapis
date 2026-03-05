@@ -237,7 +237,9 @@ class WhatsAppService
 
     /**
      * Send a WhatsApp message directly via Twilio REST API.
-     * Logs success/failure to whatsapp_logs table.
+     *
+     * DB logging is separated from the Twilio call — if the whatsapp_logs table
+     * is missing (e.g. migration not run on staging), the message STILL sends.
      */
     public function send(
         string $phone,
@@ -248,50 +250,61 @@ class WhatsAppService
     ): ?string {
         $formatted = $this->formatWhatsAppNumber($phone);
 
+        Log::debug('WhatsApp: attempting send.', [
+            'to'   => $formatted,
+            'type' => $messageType,
+        ]);
+
+        // ── STEP 1: Send via Twilio ──────────────────────────────
+        $messageSid = null;
+        $sendError  = null;
+
         try {
-            $message = $this->client->messages->create($formatted, [
+            $message    = $this->client->messages->create($formatted, [
                 'from' => $this->fromNumber,
                 'body' => $body,
             ]);
+            $messageSid = $message->sid;
 
-            WhatsAppLog::create([
-                'phone'          => $formatted,
-                'message_type'   => $messageType,
-                'appointment_id' => $appointmentId ? (int) $appointmentId : null,
-                'status'         => 'sent',
-                'twilio_sid'     => $message->sid,
-            ]);
-
-            Log::info('WhatsApp sent.', [
+            Log::info('WhatsApp sent successfully.', [
                 'to'   => $formatted,
                 'type' => $messageType,
-                'sid'  => $message->sid,
+                'sid'  => $messageSid,
             ]);
-
-            return $message->sid;
-
         } catch (\Throwable $e) {
-            WhatsAppLog::create([
-                'phone'          => $formatted,
-                'message_type'   => $messageType,
-                'appointment_id' => $appointmentId ? (int) $appointmentId : null,
-                'status'         => 'failed',
-                'twilio_sid'     => null,
-            ]);
+            $sendError = $e;
 
-            Log::error('WhatsApp send FAILED.', [
-                'to'    => $formatted,
-                'type'  => $messageType,
-                'error' => $e->getMessage(),
-                'code'  => $e->getCode(),
+            Log::error('WhatsApp Twilio send FAILED.', [
+                'to'      => $formatted,
+                'type'    => $messageType,
+                'error'   => $e->getMessage(),
+                'code'    => $e->getCode(),
+                'class'   => get_class($e),
             ]);
 
             if ($throwOnError) {
                 throw $e;
             }
-
-            return null;
         }
+
+        // ── STEP 2: Log to DB (independent — never throws) ──────
+        try {
+            WhatsAppLog::create([
+                'phone'          => $formatted,
+                'message_type'   => $messageType,
+                'appointment_id' => $appointmentId ? (int) $appointmentId : null,
+                'status'         => $sendError ? 'failed' : 'sent',
+                'twilio_sid'     => $messageSid,
+            ]);
+        } catch (\Throwable $logError) {
+            // Non-fatal: table might not exist on staging yet.
+            // Run: php artisan migrate
+            Log::warning('WhatsApp DB log failed (is whatsapp_logs table migrated?)', [
+                'error' => $logError->getMessage(),
+            ]);
+        }
+
+        return $messageSid;
     }
 
     // ─────────────────────────────────────────────────────────────
