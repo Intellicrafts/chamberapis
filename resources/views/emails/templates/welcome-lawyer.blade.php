@@ -18,7 +18,11 @@
                         <table width="100%" cellpadding="0" cellspacing="0">
                             <tr>
                                 <td>
-                                    <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">⚖️ {{ $brand['name'] ?? 'MeraBakil' }}</span>
+                                    @if(!empty($brand['logo_url']))
+                                        <img src="{{ $brand['logo_url'] }}" alt="{{ $brand['name'] ?? 'MeraBakil' }}" height="32" style="display:block;border:none;">
+                                    @else
+                                        <span style="color:#ffffff;font-size:22px;font-weight:900;letter-spacing:-0.5px;">⚖️ {{ $brand['name'] ?? 'MeraBakil' }}</span>
+                                    @endif
                                     <span style="display:block;color:rgba(255,255,255,0.7);font-size:12px;font-weight:500;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">Advocate Portal</span>
                                 </td>
                                 <td align="right">
@@ -119,7 +123,11 @@
                 <!-- ═══ CTA ═══ -->
                 <tr>
                     <td align="center" style="padding:4px 40px 40px;">
-                        <a href="{{ $brand['url'] ?? 'https://merabakil.com' }}"
+                        @php
+                            $baseUrl = rtrim($brand['url'] ?? 'https://merabakil.com', '/');
+                            $dashboardUrl = $baseUrl . '/lawyer/dashboard';
+                        @endphp
+                        <a href="{{ $dashboardUrl }}"
                            style="display:inline-block;background:linear-gradient(135deg,#1a9e99,#0d6e6a);color:#ffffff;font-size:16px;font-weight:700;padding:15px 44px;border-radius:50px;text-decoration:none;letter-spacing:0.3px;box-shadow:0 4px 24px rgba(26,158,153,0.5);">
                             🏛️ &nbsp;Open Your Dashboard
                         </a>
