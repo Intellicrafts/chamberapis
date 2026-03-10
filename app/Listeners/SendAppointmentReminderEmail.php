@@ -44,7 +44,7 @@ class SendAppointmentReminderEmail
                     to: $clientEmail,
                     subject: '⏰ Your Session Starts in 5 Minutes — MeraBakil',
                     view: 'emails.templates.appointment-reminder',
-                    data: $sharedData
+                    data: array_merge($sharedData, ['isLawyerRecipient' => false])
                 );
             }
 
@@ -55,7 +55,7 @@ class SendAppointmentReminderEmail
                     to: $lawyerEmail,
                     subject: '⏰ Consultation Begins in 5 Minutes — MeraBakil',
                     view: 'emails.templates.appointment-reminder',
-                    data: $sharedData
+                    data: array_merge($sharedData, ['isLawyerRecipient' => true])
                 );
             }
 

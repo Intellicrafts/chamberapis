@@ -21,7 +21,11 @@
                                     <table cellpadding="0" cellspacing="0">
                                         <tr>
                                             <td style="background:rgba(255,255,255,0.15);border-radius:10px;padding:8px 16px;">
-                                                <span style="color:#ffffff;font-size:20px;font-weight:800;letter-spacing:-0.5px;">⚖️ {{ $brand['name'] ?? 'MeraBakil' }}</span>
+                                                @if(!empty($brand['logo_url']))
+                                                    <img src="{{ $brand['logo_url'] }}" alt="{{ $brand['name'] ?? 'MeraBakil' }}" height="26" style="display:block;border:none;">
+                                                @else
+                                                    <span style="color:#ffffff;font-size:20px;font-weight:900;letter-spacing:-0.5px;">⚖️ {{ $brand['name'] ?? 'MeraBakil' }}</span>
+                                                @endif
                                             </td>
                                         </tr>
                                     </table>
@@ -114,7 +118,11 @@
                 <!-- ═══ CTA BUTTON ═══ -->
                 <tr>
                     <td align="center" style="padding:36px 40px;">
-                        <a href="{{ $brand['url'] ?? 'https://merabakil.com' }}"
+                        @php
+                            $baseUrl = rtrim($brand['url'] ?? 'https://merabakil.com', '/');
+                            $dashboardUrl = $baseUrl . '/user/dashboard';
+                        @endphp
+                        <a href="{{ $dashboardUrl }}"
                            style="display:inline-block;background:linear-gradient(135deg,#d4891f,#b8710f);color:#ffffff;font-size:16px;font-weight:700;padding:15px 40px;border-radius:50px;text-decoration:none;letter-spacing:0.3px;box-shadow:0 4px 20px rgba(212,137,31,0.4);">
                             🚀 &nbsp;Explore MeraBakil Now
                         </a>

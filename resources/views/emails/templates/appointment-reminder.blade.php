@@ -18,7 +18,11 @@
                         <table width="100%" cellpadding="0" cellspacing="0">
                             <tr>
                                 <td>
-                                    <span style="color:#ffffff;font-size:18px;font-weight:800;">⚖️ {{ $brand['name'] ?? 'MeraBakil' }}</span>
+                                    @if(!empty($brand['logo_url']))
+                                        <img src="{{ $brand['logo_url'] }}" alt="{{ $brand['name'] ?? 'MeraBakil' }}" height="26" style="display:block;border:none;">
+                                    @else
+                                        <span style="color:#ffffff;font-size:20px;font-weight:900;letter-spacing:-0.5px;">⚖️ {{ $brand['name'] ?? 'MeraBakil' }}</span>
+                                    @endif
                                 </td>
                                 <td align="right">
                                     <span style="background:rgba(255,255,255,0.2);color:#ffffff;font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;">🔔 Reminder</span>
@@ -120,9 +124,14 @@
                 <!-- ═══ CTA ═══ -->
                 <tr>
                     <td align="center" style="padding:30px 40px 40px;">
-                        <a href="{{ $brand['url'] ?? 'https://merabakil.com' }}"
+                        @php
+                            $baseUrl = $brand['url'] ?? 'https://merabakil.com';
+                            $dashboardUrl = ($isLawyerRecipient ?? false) ? rtrim($baseUrl, '/') . '/lawyer/consultations' : rtrim($baseUrl, '/') . '/user/appointments';
+                            $ctaText = ($isLawyerRecipient ?? false) ? '⚡  Go to My Consultations' : '⚡  Go to My Appointments';
+                        @endphp
+                        <a href="{{ $dashboardUrl }}"
                            style="display:inline-block;background:linear-gradient(135deg,#d4891f,#b8710f);color:#ffffff;font-size:15px;font-weight:700;padding:14px 40px;border-radius:50px;text-decoration:none;box-shadow:0 4px 24px rgba(212,137,31,0.5);">
-                            ⚡ &nbsp;Go to My Dashboard
+                            {{ $ctaText }}
                         </a>
                         <p style="margin:14px 0 0;font-size:12px;color:#475569;">
                             Need help? <a href="mailto:{{ $brand['support_email'] ?? 'info@merabakil.com' }}" style="color:#d4891f;text-decoration:none;">Contact Support</a>
