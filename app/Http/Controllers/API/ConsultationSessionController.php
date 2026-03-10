@@ -192,13 +192,15 @@ class ConsultationSessionController extends Controller
             );
         }
 
-        // Broadcast join event
+        // Fire event → triggers WhatsApp join-alert listener + broadcasts to channel
         try {
             $user = auth()->user();
             $userType = $isClient ? 'user' : 'lawyer';
-            broadcast(new UserJoinedConsultation($session, $userId, $user->name, $userType))->toOthers();
+            // event() dispatches to ALL listeners (WhatsApp, etc.) AND broadcasts
+            // because UserJoinedConsultation implements ShouldBroadcast
+            event(new UserJoinedConsultation($session, $userId, $user->name, $userType));
         } catch (\Exception $e) {
-            Log::info('Broadcasting not configured for join event: ' . $e->getMessage());
+            Log::info('UserJoinedConsultation event failed on rejoin: ' . $e->getMessage());
         }
 
         return response()->json([
@@ -295,11 +297,13 @@ class ConsultationSessionController extends Controller
             "{$userName} ended the consultation"
         );
 
-        // Broadcast session ended event
+        // Fire event → triggers WhatsApp session-ended listener + broadcasts to channel
         try {
-            broadcast(new ConsultationSessionEnded($session, $reason))->toOthers();
+            // event() dispatches to ALL listeners (WhatsApp, etc.) AND broadcasts
+            // because ConsultationSessionEnded implements ShouldBroadcast
+            event(new ConsultationSessionEnded($session, $reason));
         } catch (\Exception $e) {
-            Log::info('Broadcasting not configured for end event: ' . $e->getMessage());
+            Log::warning('ConsultationSessionEnded event failed: ' . $e->getMessage());
         }
 
         return response()->json([

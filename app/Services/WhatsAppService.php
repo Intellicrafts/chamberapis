@@ -26,8 +26,9 @@ use Twilio\Rest\Client as TwilioClient;
  */
 class WhatsAppService
 {
-    private TwilioClient $client;
-    private string $fromNumber;
+    private ?TwilioClient $client = null;
+    private string $fromNumber = '';
+    private bool $configured = false;
 
     // ── Brand identity ────────────────────────────────────────────
     private const BRAND     = "🏛️ *MeraVakil*";
@@ -39,13 +40,36 @@ class WhatsAppService
     {
         $sid   = config('services.twilio.sid');
         $token = config('services.twilio.token');
-        $this->fromNumber = config('services.twilio.whatsapp_from');
+        $this->fromNumber = config('services.twilio.whatsapp_from') ?? '';
 
-        if (empty($sid) || empty($token)) {
-            Log::error('WhatsAppService: Twilio credentials missing in config/services.php');
+        if (empty($sid) || empty($token) || empty($this->fromNumber)) {
+            Log::warning('WhatsAppService: Twilio credentials incomplete.', [
+                'sid_set'   => !empty($sid),
+                'token_set' => !empty($token),
+                'from_set'  => !empty($this->fromNumber),
+                'env'       => config('app.env'),
+            ]);
+            // Don't crash — allow the app to function without WhatsApp
+            return;
         }
 
-        $this->client = new TwilioClient($sid, $token);
+        try {
+            $this->client = new TwilioClient($sid, $token);
+            $this->configured = true;
+            Log::debug('WhatsAppService: initialized successfully.');
+        } catch (\Throwable $e) {
+            Log::error('WhatsAppService: Twilio client creation failed.', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Whether the WhatsApp service is fully configured and ready to send.
+     */
+    public function isConfigured(): bool
+    {
+        return $this->configured && $this->client !== null;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -436,7 +460,24 @@ class WhatsAppService
     ): ?string {
         $formatted = $this->formatWhatsAppNumber($phone);
 
-        Log::debug('WhatsApp: attempting send.', [
+        // ── Guard: ensure Twilio is configured ───────────────────
+        if (!$this->isConfigured()) {
+            Log::warning('WhatsApp: NOT CONFIGURED — message will NOT be sent.', [
+                'to'   => $formatted,
+                'type' => $messageType,
+                'hint' => 'Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM in .env',
+            ]);
+
+            // Still log to DB so you can see the attempt
+            $this->logToDb($formatted, $messageType, $appointmentId, 'not_configured', null);
+
+            if ($throwOnError) {
+                throw new \RuntimeException('WhatsApp service is not configured. Check Twilio credentials in .env');
+            }
+            return null;
+        }
+
+        Log::info('WhatsApp: attempting send.', [
             'to'   => $formatted,
             'type' => $messageType,
         ]);
@@ -474,19 +515,7 @@ class WhatsAppService
         }
 
         // ── STEP 2: Log to DB (independent — never throws) ───────
-        try {
-            WhatsAppLog::create([
-                'phone'          => $formatted,
-                'message_type'   => $messageType,
-                'appointment_id' => $appointmentId ? (int) $appointmentId : null,
-                'status'         => $sendError ? 'failed' : 'sent',
-                'twilio_sid'     => $messageSid,
-            ]);
-        } catch (\Throwable $logError) {
-            Log::warning('WhatsApp DB log failed (is whatsapp_logs table migrated?)', [
-                'error' => $logError->getMessage(),
-            ]);
-        }
+        $this->logToDb($formatted, $messageType, $appointmentId, $sendError ? 'failed' : 'sent', $messageSid);
 
         return $messageSid;
     }
@@ -494,6 +523,32 @@ class WhatsAppService
     // ─────────────────────────────────────────────────────────────
     // HELPERS
     // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Log WhatsApp send attempt to the database.
+     * Never throws — separated so failures don't break the flow.
+     */
+    private function logToDb(
+        string $phone,
+        string $messageType,
+        int|string|null $appointmentId,
+        string $status,
+        ?string $twilioSid
+    ): void {
+        try {
+            WhatsAppLog::create([
+                'phone'          => $phone,
+                'message_type'   => $messageType,
+                'appointment_id' => $appointmentId ? (int) $appointmentId : null,
+                'status'         => $status,
+                'twilio_sid'     => $twilioSid,
+            ]);
+        } catch (\Throwable $logError) {
+            Log::warning('WhatsApp DB log failed (is whatsapp_logs table migrated?)', [
+                'error' => $logError->getMessage(),
+            ]);
+        }
+    }
 
     /**
      * Format any phone number to whatsapp:+91XXXXXXXXXX format.

@@ -64,7 +64,8 @@ class AuthController extends Controller
         }
 
         try {
-            return DB::transaction(function () use ($request, $key) {
+            // DB transaction handles ONLY the database writes
+            [$user, $lawyer, $token] = DB::transaction(function () use ($request) {
                 // Sanitize input
                 $sanitizedName = trim(strip_tags($request->name));
                 $sanitizedEmail = strtolower(trim($request->email));
@@ -122,54 +123,57 @@ class AuthController extends Controller
 
                 // Create token
                 $token = $user->createToken('auth_token')->plainTextToken;
-                
-                \Log::info('Registration successful', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'user_type' => $userTypeInt
-                ]);
 
-                // Clear rate limiter on success
-                RateLimiter::clear($key);
-
-                // Fire welcome WhatsApp notification
-                try {
-                    event(new UserRegistered($user, $lawyer));
-                } catch (\Throwable $we) {
-                    // Non-fatal — log and continue
-                    \Log::warning('UserRegistered event failed.', ['error' => $we->getMessage()]);
-                }
-
-                // Prepare response data
-                $response = [
-                    'access_token' => $token,
-                    'token_type' => 'Bearer',
-                    'message' => 'User registered successfully',
-                    'user' => [
-                        'id' => $user->id,
-                        'name' => $user->name,
-                        'email' => $user->email,
-                        'phone' => $user->phone,
-                        'user_type' => $user->user_type,
-                        'created_at' => $user->created_at,
-                    ]
-                ];
-                
-                // Add lawyer data if business account
-                if ($lawyer) {
-                    $response['lawyer'] = [
-                        'uuid' => $lawyer->id,
-                        'full_name' => $lawyer->full_name,
-                        'email' => $lawyer->email,
-                        'enrollment_no' => $lawyer->enrollment_no,
-                        'specialization' => $lawyer->specialization,
-                        'is_verified' => $lawyer->is_verified,
-                        'status' => $lawyer->status,
-                    ];
-                }
-
-                return response()->json($response, 201);
+                return [$user, $lawyer, $token];
             });
+
+            // ── After transaction committed — safe to fire events ──
+            \Log::info('Registration successful', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'user_type' => $user->user_type,
+            ]);
+
+            // Clear rate limiter on success
+            RateLimiter::clear($key);
+
+            // Fire welcome WhatsApp notification (after commit so ShouldDispatchAfterCommit works)
+            try {
+                event(new UserRegistered($user, $lawyer));
+            } catch (\Throwable $we) {
+                // Non-fatal — log and continue
+                \Log::warning('UserRegistered event failed.', ['error' => $we->getMessage()]);
+            }
+
+            // Prepare response data
+            $response = [
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'message' => 'User registered successfully',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'user_type' => $user->user_type,
+                    'created_at' => $user->created_at,
+                ]
+            ];
+            
+            // Add lawyer data if business account
+            if ($lawyer) {
+                $response['lawyer'] = [
+                    'uuid' => $lawyer->id,
+                    'full_name' => $lawyer->full_name,
+                    'email' => $lawyer->email,
+                    'enrollment_no' => $lawyer->enrollment_no,
+                    'specialization' => $lawyer->specialization,
+                    'is_verified' => $lawyer->is_verified,
+                    'status' => $lawyer->status,
+                ];
+            }
+
+            return response()->json($response, 201);
             
         } catch (\Exception $e) {
             RateLimiter::hit($key);

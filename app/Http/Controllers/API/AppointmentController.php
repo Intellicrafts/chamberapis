@@ -5,7 +5,6 @@ namespace App\Http\Controllers\API;
 use App\Events\AppointmentBooked;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
-use App\Services\Mail\AppMailService;
 use App\Services\WhatsAppService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -92,7 +91,7 @@ class AppointmentController extends Controller
      * Store a newly created appointment.
      * Sends WhatsApp confirmation to both client and lawyer.
      */
-    public function store(Request $request, AppMailService $mailService): JsonResponse
+    public function store(Request $request): JsonResponse
     {
         try {
             $validated = $request->validate([
@@ -123,26 +122,6 @@ class AppointmentController extends Controller
                 }
             } catch (\Throwable $eventException) {
                 report($eventException);
-            }
-
-            // Send email notifications
-            try {
-                $lawyerOfficialEmail = $appointment->lawyer?->email ?: $appointment->lawyer?->user?->email;
-
-                $mailService->sendAppointmentBookedNotifications([
-                    'id'                  => $appointment->id,
-                    'appointment_time'    => optional($appointment->appointment_time)->toDateTimeString(),
-                    'duration_minutes'    => $appointment->duration_minutes,
-                    'status'              => $appointment->status,
-                    'meeting_link'        => $appointment->meeting_link,
-                    'user_name'           => $appointment->user?->name,
-                    'user_email'          => $appointment->user?->email,
-                    'lawyer_name'         => $appointment->lawyer?->full_name,
-                    'lawyer_email'        => $appointment->lawyer?->email,
-                    'lawyer_official_email' => $lawyerOfficialEmail,
-                ]);
-            } catch (\Throwable $mailException) {
-                report($mailException);
             }
 
             // Warn if phone numbers are missing
