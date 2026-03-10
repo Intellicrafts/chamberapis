@@ -398,4 +398,16 @@ Route::middleware('auth:sanctum')->group(function () {
         // Real-time Features
         Route::post('/{sessionToken}/typing', [\App\Http\Controllers\API\ConsultationMessageController::class, 'typing'])->name('typing');
     });
+    /*
+    |--------------------------------------------------------------------------
+    | WHATSAPP TEST & DEBUG ROUTES
+    |--------------------------------------------------------------------------
+    | Routes for testing WhatsApp integration
+    | Base URL: /api/whatsapp
+    */
+    Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
+        Route::get('/status',    [\App\Http\Controllers\API\WhatsAppTestController::class, 'status'])->name('status');
+        Route::post('/test-send', [\App\Http\Controllers\API\WhatsAppTestController::class, 'testSend'])->name('test-send');
+        Route::get('/logs',      [\App\Http\Controllers\API\WhatsAppTestController::class, 'logs'])->name('logs');
+    });
 });

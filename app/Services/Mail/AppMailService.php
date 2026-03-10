@@ -78,30 +78,50 @@ class AppMailService
         );
     }
 
-    public function sendAppointmentBookedNotifications(array $appointment): void
+
+    public function sendWelcomeClientEmail(string $email, string $userName, string $joinedAt): void
     {
-        $appointmentDateTime = $appointment['appointment_time'] ?? null;
-        $timezone = config('app.timezone', 'UTC');
+        $this->send(
+            to: $email,
+            subject: 'Welcome to MeraBakil — Your Legal Journey Starts Now! 🎉',
+            view: 'emails.templates.welcome-client',
+            data: [
+                'userName'  => $userName,
+                'userEmail' => $email,
+                'joinedAt'  => $joinedAt,
+            ]
+        );
+    }
 
-        if (!empty($appointmentDateTime)) {
-            try {
-                $dt = \Carbon\Carbon::parse($appointmentDateTime)->timezone($timezone);
-                $appointment['appointment_date'] = $dt->format('l, d M Y');
-                $appointment['appointment_time_formatted'] = $dt->format('h:i A');
-            } catch (\Throwable) {
-                $appointment['appointment_date'] = $appointmentDateTime;
-                $appointment['appointment_time_formatted'] = $appointmentDateTime;
-            }
-        }
+    public function sendWelcomeLawyerEmail(
+        string $email,
+        string $lawyerName,
+        string $enrollmentNo,
+        string $specialization,
+        string $joinedAt
+    ): void {
+        $this->send(
+            to: $email,
+            subject: 'Welcome to MeraBakil Advocate Portal 🏛️',
+            view: 'emails.templates.welcome-lawyer',
+            data: [
+                'lawyerName'     => $lawyerName,
+                'lawyerEmail'    => $email,
+                'enrollmentNo'   => $enrollmentNo,
+                'specialization' => $specialization,
+                'joinedAt'       => $joinedAt,
+            ]
+        );
+    }
 
-        $appointment['timezone'] = $timezone;
-
-        $userEmail = $appointment['user_email'] ?? null;
-        if (!empty($userEmail)) {
+    public function sendAppointmentReminderEmails(array $appointment): void
+    {
+        $clientEmail = $appointment['user_email'] ?? null;
+        if (!empty($clientEmail)) {
             $this->send(
-                to: $userEmail,
-                subject: config('mailing.subjects.appointment_user', 'Your Appointment Is Confirmed'),
-                view: 'emails.templates.appointment-booked-user',
+                to: $clientEmail,
+                subject: '⏰ Your Session Starts in 5 Minutes — MeraBakil',
+                view: 'emails.templates.appointment-reminder',
                 data: ['appointment' => $appointment]
             );
         }
@@ -110,8 +130,8 @@ class AppMailService
         if (!empty($lawyerEmail)) {
             $this->send(
                 to: $lawyerEmail,
-                subject: config('mailing.subjects.appointment_lawyer', 'New Appointment Assigned'),
-                view: 'emails.templates.appointment-booked-lawyer',
+                subject: '⏰ Consultation Begins in 5 Minutes — MeraBakil',
+                view: 'emails.templates.appointment-reminder',
                 data: ['appointment' => $appointment]
             );
         }

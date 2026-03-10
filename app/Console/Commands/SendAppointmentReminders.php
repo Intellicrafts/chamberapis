@@ -12,10 +12,10 @@ use Illuminate\Support\Facades\Log;
 class SendAppointmentReminders extends Command
 {
     protected $signature = 'appointments:send-reminders
-                            {--minutes=1  : Send reminders for appointments this many minutes ahead}
+                            {--minutes=5  : Send reminders for appointments this many minutes ahead}
                             {--window=2   : Window (±minutes) to catch appointments around the target time}';
 
-    protected $description = 'Send WhatsApp 1-minute reminders for upcoming appointments (run every minute via scheduler).';
+    protected $description = 'Send email + WhatsApp 5-minute reminders for upcoming appointments (run every minute via scheduler).';
 
     public function handle(WhatsAppService $whatsAppService): int
     {
@@ -55,12 +55,12 @@ class SendAppointmentReminders extends Command
             }
 
             try {
-                // Fire event — auto-discovered listener sends the WhatsApp
+                // Fire event — auto-discovered listeners send WhatsApp + Email reminders
                 event(new AppointmentStartingSoon($appointment));
                 $sentCount++;
                 $this->info("  OK Reminder fired for appointment #{$appointment->id}");
 
-                Log::info('Appointment reminder event fired.', [
+                Log::info('Appointment reminder event fired (email + WhatsApp).', [
                     'appointment_id'   => $appointment->id,
                     'appointment_time' => $appointment->appointment_time->toDateTimeString(),
                 ]);
