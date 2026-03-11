@@ -15,20 +15,60 @@ class PasswordResetController extends Controller
     public function sendOtp(Request $request, AppMailService $mailService)
     {
         $request->validate(['email' => 'required|email']);
+        
+        $email = strtolower(trim($request->email));
+
+        $user = User::where('email', $email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Account not found for this email'], 404);
+        }
 
         $otp = rand(100000, 999999);
 
         DB::table('password_resets')->updateOrInsert(
-            ['email' => $request->email],
+            ['email' => $email],
             [
                 'token' => $otp,
                 'created_at' => Carbon::now()
             ]
         );
 
-        $mailService->sendPasswordResetOtp($request->email, (string) $otp);
+        $mailService->sendPasswordResetOtp($email, (string) $otp, $user->name);
 
-        return response()->json(['message' => 'OTP sent to your email']);
+        return response()->json([
+            'message' => 'OTP sent to your email',
+            'user_name' => $user->name
+        ]);
+    }
+
+    // Verify OTP
+    public function verifyOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp'   => 'required',
+        ]);
+        
+        $email = strtolower(trim($request->email));
+
+        $record = DB::table('password_resets')
+                    ->where('email', $email)
+                    ->where('token', $request->otp)
+                    ->first();
+
+        if (!$record) {
+            return response()->json(['message' => 'Invalid verification code.'], 400);
+        }
+
+        if (Carbon::parse($record->created_at)->addMinutes(5)->isPast()) {
+            return response()->json(['message' => 'OTP expired. Please resend.'], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP verified successfully!'
+        ]);
     }
 
     // Reset Password
@@ -39,9 +79,11 @@ class PasswordResetController extends Controller
             'otp' => 'required',
             'password' => 'required|confirmed|min:8',
         ]);
+        
+        $email = strtolower(trim($request->email));
 
         $record = DB::table('password_resets')
-                    ->where('email', $request->email)
+                    ->where('email', $email)
                     ->where('token', $request->otp)
                     ->first();
 
@@ -49,11 +91,11 @@ class PasswordResetController extends Controller
             return response()->json(['message' => 'Invalid OTP'], 400);
         }
 
-        if (Carbon::parse($record->created_at)->addMinutes(10)->isPast()) {
-            return response()->json(['message' => 'OTP expired'], 400);
+        if (Carbon::parse($record->created_at)->addMinutes(5)->isPast()) {
+            return response()->json(['message' => 'OTP expired. Please resend.'], 400);
         }
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $email)->first();
 
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
@@ -63,7 +105,7 @@ class PasswordResetController extends Controller
         $user->save();
 
         // Delete the OTP record
-        DB::table('password_resets')->where('email', $request->email)->delete();
+        DB::table('password_resets')->where('email', $email)->delete();
 
         return response()->json(['message' => 'Password has been reset successfully']);
     }

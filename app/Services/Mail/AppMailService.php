@@ -38,16 +38,32 @@ class AppMailService
         );
     }
 
-    public function sendPasswordResetOtp(string $email, string $otp): void
+    public function sendPasswordResetOtp(string $email, string $otp, string $userName = 'User'): void
     {
         $this->send(
             to: $email,
-            subject: config('mailing.subjects.password_reset', 'Password Reset OTP'),
-            view: 'emails.templates.otp',
+            subject: config('mailing.subjects.password_reset', 'Secure Password Reset OTP - MeraBakil'),
+            view: 'emails.templates.password-reset-otp',
             data: [
-                'title' => 'Password Reset OTP',
+                'title' => 'Password Reset Request',
                 'otp' => $otp,
-                'expiresInMinutes' => 10,
+                'userName' => $userName,
+                'expiresInMinutes' => 5,
+            ]
+        );
+    }
+
+    public function sendLoginOtp(string $email, string $otp, string $userName = 'User'): void
+    {
+        $this->send(
+            to: $email,
+            subject: config('mailing.subjects.login_otp', 'Secure Login Code - MeraBakil'),
+            view: 'emails.templates.login-otp',
+            data: [
+                'title' => 'Login Authentication Code',
+                'otp' => $otp,
+                'userName' => $userName,
+                'expiresInMinutes' => 5,
             ]
         );
     }
