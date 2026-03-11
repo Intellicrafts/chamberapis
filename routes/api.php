@@ -14,6 +14,7 @@ use App\Http\Controllers\API\LegalQueryController;
 use App\Http\Controllers\API\AppointmentController;
 use App\Http\Controllers\API\LawyerController;
 use App\Http\Controllers\API\LawyerEnrollmentController;
+use App\Http\Controllers\LoginOtpController;
 use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\LawyerAdminController;
 use App\Http\Controllers\API\LawyerCaseController;
@@ -112,6 +113,10 @@ Route::middleware(['throttle:10,1'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::options('/register', [WelcomeController::class, 'apiResponse']);
     Route::post('/login', [AuthController::class, 'login'])->name('login');
+    Route::post('/login/send-otp', [LoginOtpController::class, 'sendOtp']);
+    Route::options('/login/send-otp', [WelcomeController::class, 'apiResponse']);
+    Route::post('/login/verify-otp', [LoginOtpController::class, 'verifyOtp']);
+    Route::options('/login/verify-otp', [WelcomeController::class, 'apiResponse']);
     // Route::options('/register', function () {
     //     return response()->json(['status' => 'success'], 200);
     // });
