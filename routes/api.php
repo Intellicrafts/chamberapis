@@ -60,6 +60,14 @@ Route::prefix('public')->group(function () {
     // Search lawyers with filters
     Route::get('/lawyers/search', [LawyerAdditionalController::class, 'searchLawyers'])
         ->name('public.search-lawyers');
+        
+    // Get public services for a specific lawyer
+    Route::get('/lawyers/{lawyerId}/services', function($lawyerId) {
+        return response()->json([
+            'success' => true,
+            'data' => \App\Models\LawyerService::where('lawyer_id', $lawyerId)->where('is_active', true)->get()
+        ]);
+    })->name('public.lawyer-services')->where('lawyerId', '[0-9]+');
     
 });
 
@@ -330,6 +338,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
        Route::prefix('lawyer_admin')->group(function () {
+        Route::get('/services', [\App\Http\Controllers\API\LawyerServiceController::class, 'index']);
+        Route::post('/services/sync', [\App\Http\Controllers\API\LawyerServiceController::class, 'sync']);
         Route::get('/{id}', [LawyerAdminController::class, 'index']);
     });
 
