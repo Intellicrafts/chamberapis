@@ -9,6 +9,7 @@ use App\Events\ConsultationMessageSent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class ConsultationMessageController extends Controller
 {
@@ -32,9 +33,15 @@ class ConsultationMessageController extends Controller
         // Mark messages as read for current user
         $this->markMessagesAsRead($session, auth()->id());
 
+        // Check if other participant is typing (stored in cache for up to 5 seconds)
+        $userId = auth()->id();
+        $otherParticipantId = $userId == $session->user_id ? $session->lawyer_id : $session->user_id;
+        $isTyping = Cache::get("consultation_{$session->id}_typing_user_{$otherParticipantId}", false);
+
         return response()->json([
             'messages' => $messages,
             'total' => $messages->count(),
+            'other_typing' => $isTyping,
         ]);
     }
 
@@ -188,6 +195,14 @@ class ConsultationMessageController extends Controller
             'is_typing' => 'required|boolean',
         ]);
 
+        // Support frontend polling by storing typing state in Cache for 5 seconds
+        $cacheKey = "consultation_{$session->id}_typing_user_{$userId}";
+        if ($request->is_typing) {
+            Cache::put($cacheKey, true, now()->addSeconds(5));
+        } else {
+            Cache::forget($cacheKey);
+        }
+
         $senderType = $userId == $session->user_id ? 'user' : 'lawyer';
 
         // Here you would broadcast typing indicator via WebSockets
@@ -195,6 +210,7 @@ class ConsultationMessageController extends Controller
 
         return response()->json([
             'message' => 'Typing status updated',
+            'is_typing' => $request->is_typing
         ]);
     }
 }
