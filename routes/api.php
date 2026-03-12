@@ -348,6 +348,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [LawyerAdminController::class, 'index']);
     });
 
+    Route::prefix('admin')->group(function () {
+        Route::get('/platform-services', [\App\Http\Controllers\API\AdminPlatformServiceController::class, 'index']);
+        Route::post('/platform-services', [\App\Http\Controllers\API\AdminPlatformServiceController::class, 'store']);
+        Route::put('/platform-services/{service_code}', [\App\Http\Controllers\API\AdminPlatformServiceController::class, 'update']);
+        Route::patch('/platform-services/{service_code}/status', [\App\Http\Controllers\API\AdminPlatformServiceController::class, 'toggleStatus']);
+        Route::delete('/platform-services/{service_code}', [\App\Http\Controllers\API\AdminPlatformServiceController::class, 'destroy']);
+    });
+
     /*
     |--------------------------------------------------------------------------
     | LAWYER CASES ROUTES
