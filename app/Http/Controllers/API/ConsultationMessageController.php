@@ -33,15 +33,18 @@ class ConsultationMessageController extends Controller
         // Mark messages as read for current user
         $this->markMessagesAsRead($session, auth()->id());
 
-        // Check if other participant is typing (stored in cache for up to 5 seconds)
+        // Check if other participant is performing an action (stored in cache for up to 5 seconds)
         $userId = auth()->id();
-        $otherParticipantId = $userId == $session->user_id ? $session->lawyer_id : $session->user_id;
-        $isTyping = Cache::get("consultation_{$session->id}_typing_user_{$otherParticipantId}", false);
+        $isLawyer = $session->lawyer_id == $userId && $session->user_id != $userId;
+        // If current user is lawyer, the other participant is the user ($session->user_id)
+        // If current user is user, the other participant is the lawyer ($session->lawyer_id)
+        $otherParticipantId = $isLawyer ? $session->user_id : $session->lawyer_id;
+        $otherAction = Cache::get("consultation_{$session->id}_action_user_{$otherParticipantId}", null);
 
         return response()->json([
             'messages' => $messages,
             'total' => $messages->count(),
-            'other_typing' => $isTyping,
+            'other_action' => $otherAction,
         ]);
     }
 
@@ -179,7 +182,7 @@ class ConsultationMessageController extends Controller
     }
 
     /**
-     * Broadcast typing indicator
+     * Broadcast typing/recording indicator
      */
     public function typing(Request $request, $sessionToken)
     {
@@ -192,25 +195,27 @@ class ConsultationMessageController extends Controller
         }
 
         $request->validate([
-            'is_typing' => 'required|boolean',
+            'action' => 'nullable|string|in:typing,recording,none',
         ]);
 
+        $action = $request->input('action', 'none');
+
+        // Determine correct caching ID depending on role
+        $isLawyer = $session->lawyer_id == $userId && $session->user_id != $userId;
+        $currentParticipantId = $isLawyer ? $session->lawyer_id : $session->user_id;
+
         // Support frontend polling by storing typing state in Cache for 5 seconds
-        $cacheKey = "consultation_{$session->id}_typing_user_{$userId}";
-        if ($request->is_typing) {
-            Cache::put($cacheKey, true, now()->addSeconds(5));
+        $cacheKey = "consultation_{$session->id}_action_user_{$currentParticipantId}";
+        
+        if ($action !== 'none') {
+            Cache::put($cacheKey, $action, now()->addSeconds(5));
         } else {
             Cache::forget($cacheKey);
         }
 
-        $senderType = $userId == $session->user_id ? 'user' : 'lawyer';
-
-        // Here you would broadcast typing indicator via WebSockets
-        // broadcast(new UserTyping($session->session_token, $senderType, $request->is_typing));
-
         return response()->json([
-            'message' => 'Typing status updated',
-            'is_typing' => $request->is_typing
+            'message' => 'Action status updated',
+            'action' => $action
         ]);
     }
 }
