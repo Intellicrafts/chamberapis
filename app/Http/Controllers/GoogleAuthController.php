@@ -12,24 +12,70 @@ use Illuminate\Support\Facades\Auth;
 class GoogleAuthController extends Controller
 {
     use JsonResponseTrait;
-
     public function googleLogin(Request $request)
     {
         $idToken = $request->token;
 
+        if (!$idToken) {
+            return $this->errorResponse("Token is required.", 400);
+        }
+
         try {
-            // Verify token with Socialite
-            $googleUser = Socialite::driver('google')->stateless()->userFromToken($idToken);
+            $googleUser = null;
+
+            // Check if this is an ID token (JWT format is typically larger and contains dots)
+            if (substr_count($idToken, '.') === 2) {
+                // Determine if it's an ID Token (from One Tap)
+                $response = \Illuminate\Support\Facades\Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                    'id_token' => $idToken,
+                ]);
+
+                if ($response->successful()) {
+                    $googleUser = $response->json();
+                    
+                    // Normalize OneTap variables to match standard payload
+                    if (!isset($googleUser['id'])) {
+                         $googleUser['id'] = $googleUser['sub'] ?? null;
+                    }
+                }
+            } 
+            
+            // If it's not a JWT or One Tap failed, fall back to testing it as an access token
+            if (!$googleUser) {
+                $response = \Illuminate\Support\Facades\Http::withToken($idToken)
+                    ->get('https://www.googleapis.com/oauth2/v3/userinfo');
+
+                if ($response->successful()) {
+                    $googleUser = $response->json();
+                    
+                     if (!isset($googleUser['id'])) {
+                         $googleUser['id'] = $googleUser['sub'] ?? null;
+                    }
+                }
+            }
+
+            if (!$googleUser || !isset($googleUser['email'])) {
+                return $this->errorResponse("Invalid Google token provided.", 401);
+            }
 
             $user = User::firstOrCreate(
-                ['email' => $googleUser->getEmail()],
+                ['email' => $googleUser['email']],
                 [
-                    'name' => $googleUser->getName(),
-                    'google_id' => $googleUser->getId(),
-                    'avatar' => $googleUser->getAvatar(),
+                    'name' => $googleUser['name'] ?? explode('@', $googleUser['email'])[0],
+                    'google_id' => $googleUser['id'] ?? null,
+                    'avatar' => $googleUser['picture'] ?? null,
                     'password' => bcrypt(str()->random(16)) // random password
                 ]
             );
+
+            // Update user details if they log in again but their avatar/name changed
+            if ($user->google_id === null && isset($googleUser['id'])) {
+                 $user->update([
+                     'google_id' => $googleUser['id'],
+                     'name' => $googleUser['name'] ?? $user->name,
+                     'avatar' => $googleUser['picture'] ?? $user->avatar,
+                 ]);
+            }
 
             $token = $user->createToken('authToken')->plainTextToken;
 
@@ -39,7 +85,8 @@ class GoogleAuthController extends Controller
             ], "user logged in successfully!", 200);
 
         } catch (\Exception $e) {
-            return $this->errorResponse("Something went wrong.", 500);
+            \Log::error('Google Login Error: ' . $e->getMessage());
+            return $this->errorResponse("Authentication failed.", 500);
         }
     }
 
