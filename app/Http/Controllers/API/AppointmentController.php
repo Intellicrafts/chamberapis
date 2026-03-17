@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Events\AppointmentBooked;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
+use App\Models\Client;
 use App\Services\WhatsAppService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -112,6 +113,21 @@ class AppointmentController extends Controller
             $appointment = DB::transaction(function () use ($validated) {
                 $appointment = Appointment::create($validated);
                 $appointment->load(['user', 'lawyer', 'lawyer.user']);
+
+                // Auto-create client relationship if it doesn't already exist
+                $clientExists = Client::where('user_id', $validated['user_id'])
+                                      ->where('lawyer_id', $validated['lawyer_id'])
+                                      ->exists();
+                
+                if (!$clientExists) {
+                    Client::create([
+                        'user_id' => $validated['user_id'],
+                        'lawyer_id' => $validated['lawyer_id'],
+                        'status' => Client::STATUS_PENDING,
+                        // Nullable fields like service_id and priority are left null by default
+                    ]);
+                }
+
                 return $appointment;
             });
 
