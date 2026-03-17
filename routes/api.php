@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\LawyerAdditionalController;
 use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\MailController;
 use App\Http\Controllers\API\VoiceCallController;
+use App\Http\Controllers\API\ClientController;
 
 
 Route::get('/user', function (Request $request) {
@@ -432,5 +433,66 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/status',    [\App\Http\Controllers\API\WhatsAppTestController::class, 'status'])->name('status');
         Route::post('/test-send', [\App\Http\Controllers\API\WhatsAppTestController::class, 'testSend'])->name('test-send');
         Route::get('/logs',      [\App\Http\Controllers\API\WhatsAppTestController::class, 'logs'])->name('logs');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLIENTS ROUTES
+    |--------------------------------------------------------------------------
+    | Manages client relationships between users, lawyers, and services.
+    | Base URL: /api/clients
+    |
+    | IMPORTANT: Static/named segment routes MUST be declared BEFORE wildcard
+    | routes (/{client}) to avoid route conflicts in Laravel.
+    */
+
+    Route::prefix('clients')->name('clients.')->group(function () {
+
+        // ── Static routes (no wildcard) — MUST come before /{client} ─────────
+
+        // Dashboard summary: count of clients by status & priority
+        Route::get('/stats', [ClientController::class, 'stats'])->name('stats');
+
+        // All clients for a specific user (client's "My Cases" view)
+        Route::get('/user/{userId}', [ClientController::class, 'getByUser'])->name('by-user');
+
+        // All clients for a specific lawyer (lawyer's "My Clients" panel)
+        Route::get('/lawyer/{lawyerId}', [ClientController::class, 'getByLawyer'])->name('by-lawyer');
+
+        // All clients under a specific service
+        Route::get('/service/{serviceId}', [ClientController::class, 'getByService'])->name('by-service');
+
+        // Bulk-update status for multiple clients at once
+        Route::post('/bulk-status', [ClientController::class, 'bulkUpdateStatus'])->name('bulk-status');
+
+        // ── Standard CRUD ─────────────────────────────────────────────────────
+
+        // List all clients (supports filters: status, priority, lawyer_id, user_id, search, pagination)
+        Route::get('/', [ClientController::class, 'index'])->name('index');
+
+        // Create a new client record
+        Route::post('/', [ClientController::class, 'store'])->name('store');
+
+        // ── Wildcard /{client} routes — MUST come last ────────────────────────
+
+        // Get a single client record with relations
+        Route::get('/{client}', [ClientController::class, 'show'])->name('show');
+
+        // Full update of a client record
+        Route::put('/{client}', [ClientController::class, 'update'])->name('update');
+
+        // Soft-delete a client record (can be restored)
+        Route::delete('/{client}', [ClientController::class, 'destroy'])->name('destroy');
+
+        // ── Special / status-specific routes ──────────────────────────────────
+
+        // Update status only (with automatic timestamp side-effects)
+        Route::patch('/{client}/status', [ClientController::class, 'updateStatus'])->name('update-status');
+
+        // Update priority only (nullable — can be set to null to clear)
+        Route::patch('/{client}/priority', [ClientController::class, 'updatePriority'])->name('update-priority');
+
+        // Restore a soft-deleted client record (uses raw ID, not model binding)
+        Route::post('/{id}/restore', [ClientController::class, 'restore'])->name('restore');
     });
 });

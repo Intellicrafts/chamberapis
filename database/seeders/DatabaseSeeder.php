@@ -28,6 +28,12 @@ class DatabaseSeeder extends Seeder
             BaseDataSeeder::class,
         ]);
 
+        // ── 3. Clients module ─────────────────────────────────────────────────
+        // Depends on: users (step 2), lawyers (step 2), lawyer_services (step 2)
+        $this->call([
+            ClientSeeder::class,  // clients table (15 rows)
+        ]);
+
         // ── 3. Lawyer Rating & Reputation System ────────────────────────────
         // Depends on: lawyers (step 2), appointments (step 2), users (step 2)
         $this->call([
