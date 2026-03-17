@@ -180,6 +180,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{user}', [UserController::class, 'show'])->name('show');
 
     });
+    
+    // Admin / Global Users list
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
 
     /*
     |--------------------------------------------------------------------------
