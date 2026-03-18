@@ -24,6 +24,7 @@ use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\MailController;
 use App\Http\Controllers\API\VoiceCallController;
 use App\Http\Controllers\API\ClientController;
+use App\Http\Controllers\API\WalletController;
 
 
 Route::get('/user', function (Request $request) {
@@ -497,5 +498,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Restore a soft-deleted client record (uses raw ID, not model binding)
         Route::post('/{id}/restore', [ClientController::class, 'restore'])->name('restore');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | WALLET ROUTES
+    |--------------------------------------------------------------------------
+    | Routes for user wallet management (balance, recharge, withdraw, history)
+    | Base URL: /api/wallet
+    */
+    Route::prefix('wallet')->name('wallet.')->group(function () {
+        Route::get('/balance',          [WalletController::class, 'getBalance'])->name('balance');
+        Route::get('/transactions',     [WalletController::class, 'getTransactions'])->name('transactions');
+        Route::post('/recharge',        [WalletController::class, 'recharge'])->name('recharge');
+        Route::post('/withdraw',        [WalletController::class, 'withdraw'])->name('withdraw');
     });
 });
