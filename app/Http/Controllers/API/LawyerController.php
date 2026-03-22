@@ -23,6 +23,7 @@ class LawyerController extends Controller
                 ->select(
                     'lawyers.id as lawyer_id',
                     'users.id as user_id',
+                    'users.user_type as user_type', // 2 = Lawyer
                     'users.avatar as user_profile_picture',
                     'lawyers.*',
                     'lawyer_categories.category_name as lawyer_category_name'

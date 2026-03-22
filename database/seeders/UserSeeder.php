@@ -27,19 +27,19 @@ class UserSeeder extends Seeder
 
         for ($i = 0; $i < 50; $i++) {
             $email = $faker->unique()->safeEmail();
-            
+
             DB::table('users')->insert([
-                'name'              => $faker->name(),
-                'email'             => $email,
-                'phone'             => '9' . $faker->randomNumber(8, true),
-                'password'          => Hash::make('password123'),
-                'user_type'         => 1, // Will be updated to 2 by LawyerSeeder if selected
-                'active'            => 1,
-                'is_verified'       => 1,
-                'avatar'            => $faker->randomElement($avatars),
-                'deleted'           => 0,
-                'created_at'        => now(),
-                'updated_at'        => now(),
+                'name' => $faker->name(),
+                'email' => $email,
+                'phone' => '9' . $faker->randomNumber(8, true),
+                'password' => Hash::make('password123'),
+                'user_type' => 1, // Will be updated to 2 by LawyerSeeder if selected
+                'active' => 1,
+                'is_verified' => 1,
+                'avatar' => $faker->randomElement($avatars),
+                'deleted' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         }
 
