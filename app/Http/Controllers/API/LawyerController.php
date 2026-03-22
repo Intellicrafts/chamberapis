@@ -19,32 +19,45 @@ class LawyerController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = Lawyer::query();
+            $query = Lawyer::query()
+                ->select(
+                    'lawyers.id as lawyer_id',
+                    'users.id as user_id',
+                    'users.avatar as user_profile_picture',
+                    'lawyers.*',
+                    'lawyer_categories.category_name as lawyer_category_name'
+                )
+                ->join('users', 'lawyers.user_id', '=', 'users.id')
+                ->join('lawyer_categories', 'lawyers.id', '=', 'lawyer_categories.lawyer_id')
+                ->where('users.user_type', 2)
+                ->where('lawyers.active', 1)
+                ->where('lawyers.is_verified', 1)
+                ->groupBy('lawyers.id');
 
             // Filters
             if ($request->has('active')) {
-                $query->where('active', $request->boolean('active'));
+                $query->where('lawyers.active', $request->boolean('active'));
             }
 
             if ($request->has('verified')) {
-                $query->where('is_verified', $request->boolean('verified'));
+                $query->where('lawyers.is_verified', $request->boolean('verified'));
             }
 
             if ($request->has('specialization')) {
-                $query->bySpecialization($request->specialization);
+                $query->where('lawyer_categories.category_name', $request->specialization);
             }
 
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
-                    $q->where('full_name', 'LIKE', "%{$search}%")
-                      ->orWhere('email', 'LIKE', "%{$search}%")
-                      ->orWhere('specialization', 'LIKE', "%{$search}%");
+                    $q->where('lawyers.full_name', 'LIKE', "%{$search}%")
+                      ->orWhere('lawyers.email', 'LIKE', "%{$search}%")
+                      ->orWhere('lawyer_categories.category_name', 'LIKE', "%{$search}%");
                 });
             }
 
             // Sorting
-            $sortBy = $request->get('sort_by', 'created_at');
+            $sortBy = $request->get('sort_by', 'lawyers.created_at');
             $sortOrder = $request->get('sort_order', 'desc');
             $query->orderBy($sortBy, $sortOrder);
 
