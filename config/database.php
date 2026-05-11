@@ -3,6 +3,25 @@
 use Illuminate\Support\Str;
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Local vs Remote Environment Detection
+    |--------------------------------------------------------------------------
+    |
+    | This project is used in both local development and remote (staging /
+    | production). A common failure mode is a remote MySQL DB being unreachable
+    | from a developer machine (firewall / IP whitelist), causing requests to
+    | "hang" and auth/OTP to appear broken.
+    |
+    | We infer "local" when APP_URL points at localhost / 127.0.0.1. This keeps
+    | local development fast by defaulting to SQLite, while remote keeps MySQL.
+    |
+    */
+
+    'is_local' => (function (): bool {
+        $url = (string) env('APP_URL', '');
+        return str_contains($url, 'localhost') || str_contains($url, '127.0.0.1');
+    })(),
 
     /*
     |--------------------------------------------------------------------------
@@ -16,7 +35,10 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION') ?: (((function (): bool {
+        $url = (string) env('APP_URL', '');
+        return str_contains($url, 'localhost') || str_contains($url, '127.0.0.1');
+    })()) ? 'sqlite' : 'mysql'),
 
     /*
     |--------------------------------------------------------------------------

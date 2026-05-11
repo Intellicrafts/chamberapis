@@ -3,6 +3,15 @@
 use Illuminate\Support\Str;
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Local vs Remote Cookie Domain
+    |--------------------------------------------------------------------------
+    |
+    | For local dev, SESSION_DOMAIN should be null (host-only cookie).
+    | For remote environments you can set SESSION_DOMAIN in .env (e.g. .logicera.in).
+    |
+    */
 
     /*
     |--------------------------------------------------------------------------
@@ -156,6 +165,7 @@ return [
     |
     */
 
+    // Host-only cookie by default; set SESSION_DOMAIN in remote env if needed (e.g. .logicera.in).
     'domain' => env('SESSION_DOMAIN'),
 
     /*

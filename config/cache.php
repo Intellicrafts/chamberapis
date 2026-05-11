@@ -3,6 +3,15 @@
 use Illuminate\Support\Str;
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Local vs Remote Defaults
+    |--------------------------------------------------------------------------
+    |
+    | In local development we prefer file cache so auth/OTP flows don't depend
+    | on a remote DB. Remote can keep database/redis if desired.
+    |
+    */
 
     /*
     |--------------------------------------------------------------------------
@@ -15,7 +24,10 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    'default' => env('CACHE_STORE') ?: (((function (): bool {
+        $url = (string) env('APP_URL', '');
+        return str_contains($url, 'localhost') || str_contains($url, '127.0.0.1');
+    })()) ? 'file' : 'database'),
 
     /*
     |--------------------------------------------------------------------------

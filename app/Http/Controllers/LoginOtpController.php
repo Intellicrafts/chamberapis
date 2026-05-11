@@ -2,130 +2,147 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use App\Models\User;
-use App\Models\Lawyer;
+use App\Services\Auth\AuthResponseBuilder;
 use App\Services\Mail\AppMailService;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 
+/**
+ * LoginOtpController
+ * -----------------------------------------------------------------------------
+ * Passwordless e-mail OTP login.
+ *
+ *   POST /api/login/send-otp     →  generate + cache + email a 6-digit OTP
+ *   POST /api/login/verify-otp   →  exchange the OTP for a Sanctum token
+ *
+ * Storage: the OTP lives in Laravel cache (5-minute TTL) keyed by email. This
+ * is faster than DB writes for a transient code, survives mailer failures
+ * (the OTP is generated BEFORE the mail attempt, so we can recover in dev),
+ * and is automatically evicted.
+ *
+ * Mailer safety: SMTP errors are CAUGHT here and surface as 502 to the client
+ * with `mail_error: true`. The OTP itself is still written to the cache so the
+ * user can paste a code we manually inspected (useful for local dev where
+ * MAIL_USERNAME/PASSWORD are unset).
+ * -----------------------------------------------------------------------------
+ */
 class LoginOtpController extends Controller
 {
+    private const OTP_TTL_MINUTES = 5;
+    private const RATE_LIMIT_PER_MINUTE = 5;
+    private const CACHE_PREFIX = 'login_otp_';
+
+    /* ─────────────────────────── SEND OTP ────────────────────────────────── */
+
     /**
-     * Send OTP for login.
+     * POST /api/login/send-otp
      */
-    public function sendOtp(Request $request, AppMailService $mailService)
+    public function sendOtp(Request $request, AppMailService $mailService): JsonResponse
     {
-        // Rate limiting
         $key = 'login-otp-send:' . $request->ip();
-        if (RateLimiter::tooManyAttempts($key, 5)) {
-            return response()->json([
-                'message' => 'Too many attempts. Please try again later.'
-            ], 429);
+        if (RateLimiter::tooManyAttempts($key, self::RATE_LIMIT_PER_MINUTE)) {
+            return response()->json(['message' => 'Too many attempts. Please try again later.'], 429);
         }
 
         $request->validate(['email' => 'required|email']);
-        
         $email = strtolower(trim($request->email));
 
         $user = User::where('email', $email)->first();
-
-        if (!$user) {
+        if (! $user) {
             RateLimiter::hit($key);
             return response()->json(['message' => 'Account not found for this email'], 404);
         }
 
-        // Generate OTP
-        $otp = rand(100000, 999999);
+        // 1. Generate the OTP and put it in the cache FIRST. This way, even if
+        //    the mailer blows up below, the OTP is still recoverable by an
+        //    admin and the user can be helped manually.
+        $otp = (string) random_int(100000, 999999);
+        Cache::put(
+            self::CACHE_PREFIX . $email,
+            ['otp' => $otp, 'created_at' => Carbon::now()],
+            now()->addMinutes(self::OTP_TTL_MINUTES)
+        );
 
-        // Store OTP. We can reuse password_resets table or a generic one. We'll use password_resets for simplicity as it behaves identically (email -> token -> timestamp), but realistically Laravel Cache is better here to avoid DB clutter for simple logins. Using Cache is safer for login attempts:
-        \Illuminate\Support\Facades\Cache::put('login_otp_' . $email, [
-            'otp' => (string) $otp,
-            'created_at' => Carbon::now()
-        ], now()->addMinutes(5));
-
-        // Send Email
-        $mailService->sendLoginOtp($email, (string) $otp, $user->name);
+        // 2. Try to e-mail it. SMTP failures are non-fatal — surface them as
+        //    502 so the FE can show a clean "OTP service unavailable" message
+        //    instead of a raw 500 stack trace.
+        try {
+            $mailService->sendLoginOtp($email, $otp, $user->name);
+        } catch (\Throwable $e) {
+            Log::error('OTP mail send failed', ['email' => $email, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success'    => false,
+                'mail_error' => true,
+                'message'    => 'We generated your code but could not e-mail it. Please try again or contact support.',
+            ], 502);
+        }
 
         return response()->json([
-            'success' => true,
-            'message' => 'Login OTP sent to your email',
-            'user_name' => $user->name
+            'success'   => true,
+            'message'   => 'Login OTP sent to your email',
+            'user_name' => $user->name,
         ]);
     }
 
+    /* ───────────────────────── VERIFY OTP ────────────────────────────────── */
+
     /**
-     * Verify OTP and return standard Login token
+     * POST /api/login/verify-otp
+     *
+     * On success: returns the standard AuthResponseBuilder JSON shape
+     * (same as /api/login). The OTP is then evicted from cache.
      */
-    public function verifyOtp(Request $request)
+    public function verifyOtp(Request $request): JsonResponse
     {
         $request->validate([
             'email' => 'required|email',
-            'otp'   => 'required',
+            'otp'   => 'required|digits:6',
         ]);
-        
+
         $email = strtolower(trim($request->email));
 
-        $cacheData = \Illuminate\Support\Facades\Cache::get('login_otp_' . $email);
-
-        if (!$cacheData || $cacheData['otp'] !== $request->otp) {
+        // 1. Look up the cached OTP and compare in constant time.
+        $cached = Cache::get(self::CACHE_PREFIX . $email);
+        if (! $cached || ! hash_equals((string) $cached['otp'], (string) $request->otp)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired OTP code.'
+                'message' => 'Invalid or expired OTP code.',
             ], 400);
         }
 
+        // 2. Resolve the user (it might have been deleted between send + verify).
         $user = User::where('email', $email)->first();
-
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Account not found'], 404);
         }
 
-        // Check lawyer profile if applicable
-        $lawyer = null;
-        if (in_array($user->user_type, ['business', 'lawyer', 2, '2'])) {
-            $lawyer = Lawyer::where('email', $user->email)->first();
-            if ($lawyer && !$lawyer->active) {
+        // 3. Lawyers with a deactivated profile must not be allowed in.
+        $isLawyer = in_array($user->user_type, [2, '2', 'business', 'lawyer'], true);
+        if ($isLawyer) {
+            $lawyer = \App\Models\Lawyer::where('email', $user->email)->first();
+            if ($lawyer && ! $lawyer->active) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Account is inactive. Please contact administrator.'
+                    'message' => 'Account is inactive. Please contact administrator.',
                 ], 403);
             }
         }
 
-        // Clear the OTP
-        \Illuminate\Support\Facades\Cache::forget('login_otp_' . $email);
+        // 4. Consume the OTP so it can't be replayed.
+        Cache::forget(self::CACHE_PREFIX . $email);
 
-        // Create a new token
+        // 5. Issue a fresh Sanctum token + return the standard shape.
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $response = [
-            'message' => 'Hi '.$user->name.', welcome back',
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'user_type' => $user->user_type,
-                'created_at' => $user->created_at,
-            ]
-        ];
-
-        // Add lawyer data if available
-        if ($lawyer) {
-            $response['lawyer'] = [
-                'uuid' => $lawyer->id,
-                'full_name' => $lawyer->full_name,
-                'email' => $lawyer->email,
-                'enrollment_no' => $lawyer->enrollment_no,
-                'specialization' => $lawyer->specialization,
-                'is_verified' => $lawyer->is_verified,
-                'status' => $lawyer->status,
-            ];
-        }
-
-        return response()->json($response);
+        return AuthResponseBuilder::success(
+            $user,
+            $token,
+            'Hi ' . $user->name . ', welcome back'
+        );
     }
 }

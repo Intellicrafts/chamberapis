@@ -13,7 +13,10 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    'default' => env('QUEUE_CONNECTION') ?: (((function (): bool {
+        $url = (string) env('APP_URL', '');
+        return str_contains($url, 'localhost') || str_contains($url, '127.0.0.1');
+    })()) ? 'sync' : 'database'),
 
     /*
     |--------------------------------------------------------------------------

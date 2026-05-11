@@ -9,9 +9,28 @@ use Carbon\Carbon;
 use App\Models\User;
 use App\Services\Mail\AppMailService;
 
+/**
+ * PasswordResetController
+ * -----------------------------------------------------------------------------
+ * Forgot-password flow:
+ *   POST  /api/password/send-otp     → email a 6-digit OTP
+ *   GET   /api/password/verify-otp   → verify OTP (without consuming it)
+ *   POST  /api/password/reset        → set new password using the OTP
+ *
+ * OTPs live in the `password_resets` table keyed by email (TTL enforced in
+ * code, not DB). Mailer errors are caught so an SMTP outage degrades to a
+ * 502 instead of a 500 stack trace.
+ * -----------------------------------------------------------------------------
+ */
 class PasswordResetController extends Controller
 {
-    // Send OTP
+    /** OTP validity window. */
+    private const OTP_TTL_MINUTES = 10;
+
+    /**
+     * POST /api/password/send-otp
+     * Generate + cache + email a 6-digit OTP. Mail failure → 502 (not 500).
+     */
     public function sendOtp(Request $request, AppMailService $mailService)
     {
         $request->validate(['email' => 'required|email']);
@@ -34,7 +53,16 @@ class PasswordResetController extends Controller
             ]
         );
 
-        $mailService->sendPasswordResetOtp($email, (string) $otp, $user->name);
+        try {
+            $mailService->sendPasswordResetOtp($email, (string) $otp, $user->name);
+        } catch (\Throwable $e) {
+            \Log::error('Password reset mail failed', ['email' => $email, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success'    => false,
+                'mail_error' => true,
+                'message'    => 'We generated your reset code but could not e-mail it. Please try again or contact support.',
+            ], 502);
+        }
 
         return response()->json([
             'message' => 'OTP sent to your email',
