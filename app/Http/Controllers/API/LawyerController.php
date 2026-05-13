@@ -15,25 +15,29 @@ class LawyerController extends Controller
 {
     /**
      * Display a listing of lawyers.
+     *
+     * NOTE: Do NOT add a top-level INNER JOIN with `lawyer_categories` plus
+     * `groupBy('lawyers.id')` here. That pattern violates MySQL's
+     * ONLY_FULL_GROUP_BY (enabled by `strict => true` in config/database.php)
+     * because Laravel's paginator wraps the SELECT into
+     * `select count(*) from (...) as aggregate_table` for the count query,
+     * and `lawyers.*` in that subquery contains columns not in the GROUP BY.
+     * Filter categories via whereHas() and load them via with('categories').
      */
     public function index(Request $request): JsonResponse
     {
         try {
             $query = Lawyer::query()
                 ->select(
-                    'lawyers.id as lawyer_id',
+                    'lawyers.*',
                     'users.id as user_id',
                     'users.user_type as user_type', // 2 = Lawyer
-                    'users.avatar as user_profile_picture',
-                    'lawyers.*',
-                    'lawyer_categories.category_name as lawyer_category_name'
+                    'users.avatar as user_profile_picture'
                 )
                 ->join('users', 'lawyers.user_id', '=', 'users.id')
-                ->join('lawyer_categories', 'lawyers.id', '=', 'lawyer_categories.lawyer_id')
                 ->where('users.user_type', 2)
                 ->where('lawyers.active', 1)
-                ->where('lawyers.is_verified', 1)
-                ->groupBy('lawyers.id');
+                ->where('lawyers.is_verified', 1);
 
             // Filters
             if ($request->has('active')) {
@@ -45,15 +49,19 @@ class LawyerController extends Controller
             }
 
             if ($request->has('specialization')) {
-                $query->where('lawyer_categories.category_name', $request->specialization);
+                $query->whereHas('categories', function ($q) use ($request) {
+                    $q->where('category_name', $request->specialization);
+                });
             }
 
             if ($request->has('search')) {
                 $search = $request->search;
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('lawyers.full_name', 'LIKE', "%{$search}%")
                       ->orWhere('lawyers.email', 'LIKE', "%{$search}%")
-                      ->orWhere('lawyer_categories.category_name', 'LIKE', "%{$search}%");
+                      ->orWhereHas('categories', function ($subQ) use ($search) {
+                          $subQ->where('category_name', 'LIKE', "%{$search}%");
+                      });
                 });
             }
 
@@ -63,10 +71,18 @@ class LawyerController extends Controller
             $query->orderBy($sortBy, $sortOrder);
 
             // Pagination
-            $perPage = $request->get('per_page', 15);
-            $lawyers = $query->with(['reviews', 'availabilitySlots'])
+            $perPage = (int) $request->get('per_page', 15);
+            $lawyers = $query->with(['reviews', 'availabilitySlots', 'categories'])
                             ->withCount(['reviews', 'appointments'])
                             ->paginate($perPage);
+
+            // Backwards-compat: keep `lawyer_id` and `lawyer_category_name` in the payload
+            $lawyers->getCollection()->transform(function ($lawyer) {
+                $lawyer->lawyer_id = $lawyer->id;
+                $firstCategory = $lawyer->relationLoaded('categories') ? $lawyer->categories->first() : null;
+                $lawyer->lawyer_category_name = $firstCategory ? $firstCategory->category_name : null;
+                return $lawyer;
+            });
 
             return response()->json([
                 'success' => true,
