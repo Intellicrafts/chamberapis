@@ -95,7 +95,7 @@ class WhatsAppTestController extends Controller
           . "📅 Time: " . now()->format('d M Y, h:i A') . " IST\n"
           . "🌐 Env: " . config('app.env') . "\n\n"
           . "━━━━━━━━━━━━━━━━━━━━━━\n"
-          . "📲 *dev.merabakil.com*  |  ☎️ Support: +91-9557824745"
+          . "📲 *dev.merabakil.in*  |  ☎️ Support: +91-9557824745"
         );
 
         Log::info('WhatsApp test send requested.', ['phone' => $phone]);
